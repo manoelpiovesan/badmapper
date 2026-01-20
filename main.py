@@ -66,6 +66,7 @@ class Media:
         # Para modo de redimensionamento
         self.resize_anchor = None
         self.initial_corners = None
+        self.initial_mouse_pos = None
         
         # Botões de modo
         self.buttons = []
@@ -87,7 +88,7 @@ class Media:
         modes = ['Perspectiva', 'Mover', 'Redimensionar', 'Rotacionar']
         mode_keys = ['perspective', 'move', 'resize', 'rotate']
         
-        total_width = len(modes) * button_width + (len(modes) - 1) * spacing
+        total_width = len(modes) * button_width + (len(modes) - 1) * spacing + button_width + spacing
         start_x = top_center_x - total_width / 2
         
         self.buttons = []
@@ -104,6 +105,19 @@ class Media:
             btn.is_active = (self.transform_mode == mode_key)
             btn.mode = mode_key
             self.buttons.append(btn)
+        
+        # Botão de deletar
+        delete_btn = Button(
+            start_x + len(modes) * (button_width + spacing),
+            top_y,
+            button_width,
+            button_height,
+            'Deletar',
+            color=(150, 30, 30),
+            active_color=(200, 50, 50)
+        )
+        delete_btn.mode = 'delete'
+        self.buttons.append(delete_btn)
     
     def load_frame(self):
         """Carregar mídia"""
@@ -184,6 +198,13 @@ class Media:
         """Obter centro da mídia"""
         return np.mean(self.corners, axis=0)
     
+    def set_mode(self, mode):
+        """Alterar modo de transformação"""
+        if mode in ['perspective', 'move', 'resize', 'rotate']:
+            self.transform_mode = mode
+            for btn in self.buttons:
+                btn.is_active = (btn.mode == mode)
+    
     def rotate_corners(self, angle, center):
         """Rotacionar cantos em torno de um ponto"""
         cos_a = math.cos(angle)
@@ -208,12 +229,14 @@ class Media:
         """Mover todos os cantos"""
         self.corners += delta
     
-    def scale_corners(self, scale, anchor):
-        """Redimensionar cantos a partir de um ponto de ancoragem"""
+    def scale_corners(self, scale_x, scale_y, center):
+        """Redimensionar cantos a partir do centro"""
         new_corners = []
         for corner in self.corners:
-            direction = corner - anchor
-            new_corner = anchor + direction * scale
+            # Vetor do centro para o canto
+            direction = corner - center
+            # Aplicar escala
+            new_corner = center + direction * np.array([scale_x, scale_y])
             new_corners.append(new_corner)
         return np.float32(new_corners)
     
@@ -276,6 +299,8 @@ class Media:
         # Verificar clique nos botões
         for button in self.buttons:
             if button.rect.collidepoint(pos):
+                if button.mode == 'delete':
+                    return 'delete'  # Sinal especial para deletar
                 self.transform_mode = button.mode
                 for btn in self.buttons:
                     btn.is_active = (btn.mode == self.transform_mode)
@@ -307,8 +332,8 @@ class Media:
                 if dist < 15:
                     self.selected_corner = i
                     self.dragging = True
-                    self.resize_anchor = self.corners[(i + 2) % 4].copy()  # Canto oposto
                     self.initial_corners = self.corners.copy()
+                    self.initial_mouse_pos = np.array(pos, dtype=np.float32)
                     return True
         
         elif self.transform_mode == 'rotate':
@@ -331,6 +356,7 @@ class Media:
         self.drag_offset = None
         self.resize_anchor = None
         self.initial_corners = None
+        self.initial_mouse_pos = None
         self.rotation_center = None
     
     def handle_mouse_move(self, pos):
@@ -353,14 +379,23 @@ class Media:
                 self.move_corners(delta)
         
         elif self.transform_mode == 'resize':
-            if self.selected_corner >= 0 and self.resize_anchor is not None:
-                # Calcular escala baseada na distância
-                original_dist = np.linalg.norm(self.initial_corners[self.selected_corner] - self.resize_anchor)
-                new_dist = np.linalg.norm(np.array(pos) - self.resize_anchor)
+            if self.selected_corner >= 0 and self.initial_corners is not None:
+                # Calcular centro da forma original
+                center = np.mean(self.initial_corners, axis=0)
+                
+                # Calcular distância original e nova do centro ao canto
+                original_dist = np.linalg.norm(self.initial_corners[self.selected_corner] - center)
+                new_dist = np.linalg.norm(np.array(pos) - center)
                 
                 if original_dist > 0:
+                    # Escala uniforme baseada na proporção das distâncias
                     scale = new_dist / original_dist
-                    self.corners = self.scale_corners(scale, self.resize_anchor)
+                    scale = max(0.1, min(scale, 5.0))  # Limitar entre 0.1x e 5x
+                    
+                    # Aplicar escala uniformemente a partir do centro
+                    for i in range(4):
+                        direction = self.initial_corners[i] - center
+                        self.corners[i] = center + direction * scale
         
         elif self.transform_mode == 'rotate':
             if self.rotation_center is not None:
@@ -396,7 +431,7 @@ class ProjectionMapper:
         self.screen_width = 1280
         self.screen_height = 720
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        pygame.display.set_caption("Simple Mapper - Projection Mapping")
+        pygame.display.set_caption("BadMapper")
         
         self.clock = pygame.time.Clock()
         self.running = True
@@ -472,6 +507,31 @@ class ProjectionMapper:
                     self.edit_mode = not self.edit_mode
                     print(f"Modo de edição: {'ON' if self.edit_mode else 'OFF'}")
                 
+                # Atalhos numéricos para modos (1=Perspectiva, 2=Mover, 3=Redimensionar, 4=Rotacionar)
+                elif event.key == pygame.K_1 and self.current_media:
+                    self.current_media.set_mode('perspective')
+                    print("Modo: Perspectiva")
+                
+                elif event.key == pygame.K_2 and self.current_media:
+                    self.current_media.set_mode('move')
+                    print("Modo: Mover")
+                
+                elif event.key == pygame.K_3 and self.current_media:
+                    self.current_media.set_mode('resize')
+                    print("Modo: Redimensionar")
+                
+                elif event.key == pygame.K_4 and self.current_media:
+                    self.current_media.set_mode('rotate')
+                    print("Modo: Rotacionar")
+                
+                # Deletar mídia (tecla DELETE ou D)
+                elif event.key in [pygame.K_DELETE, pygame.K_d] and self.current_media:
+                    if self.current_media in self.medias:
+                        self.current_media.cleanup()
+                        self.medias.remove(self.current_media)
+                        self.current_media = self.medias[-1] if self.medias else None
+                        print(f"Mídia deletada. Mídias restantes: {len(self.medias)}")
+                
                 # Toggle grid
                 elif event.key == pygame.K_m:
                     self.show_grid = not self.show_grid
@@ -494,7 +554,13 @@ class ProjectionMapper:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Botão esquerdo
                     if self.current_media:
-                        self.current_media.handle_mouse_down(event.pos, self.edit_mode)
+                        result = self.current_media.handle_mouse_down(event.pos, self.edit_mode)
+                        if result == 'delete':
+                            # Deletar mídia atual
+                            self.current_media.cleanup()
+                            self.medias.remove(self.current_media)
+                            self.current_media = self.medias[-1] if self.medias else None
+                            print(f"Mídia deletada. Mídias restantes: {len(self.medias)}")
             
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
@@ -551,8 +617,8 @@ class ProjectionMapper:
         
         instructions = [
             f"MODO: {current_mode}",
-            "Use os botões acima da mídia para trocar de modo",
-            "I - Importar | E - Edição | M - Grid | F - Tela cheia | ESC - Sair"
+            "Botões: acima da mídia | Atalhos: 1-Perspectiva 2-Mover 3-Resize 4-Rotar",
+            "I-Importar | E-Edição | M-Grid | F-Fullscreen | D-Deletar | ESC-Sair"
         ]
         
         y = 10
@@ -601,10 +667,17 @@ if __name__ == "__main__":
     print("  E - Ativar/desativar modo de edição")
     print("  M - Alternar entre mídia e grid")
     print("  F - Tela cheia")
+    print("  D ou DELETE - Deletar mídia atual")
     print("  ESC - Sair")
+    print("\nAtalhos de Modo (no modo de edição):")
+    print("  1 - Perspectiva (ajustar warp)")
+    print("  2 - Mover")
+    print("  3 - Redimensionar")
+    print("  4 - Rotacionar")
     print("\nModo de edição:")
-    print("  - Arraste os cantos amarelos para ajustar perspectiva")
-    print("  - Use para mapear a mídia em superfícies irregulares")
+    print("  - Use os botões acima da mídia ou teclas 1-4")
+    print("  - Arraste para transformar a mídia")
+    print("  - Botão vermelho 'Deletar' remove a mídia")
     print("\nFormatos suportados:")
     print("  Imagens: JPG, PNG, BMP, GIF")
     print("  Vídeos: MP4, AVI, MOV, MKV")
