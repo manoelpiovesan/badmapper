@@ -52,14 +52,17 @@ class Button:
                 print(f"Erro ao carregar ícone {icon_path}: {e}")
     
     def draw(self, screen):
-        color = self.active_color if self.is_active else (self.color if not self.hover else (225, 227, 232))
+        color = self.active_color if self.is_active else (self.color if not self.hover else (130, 130, 140))
         pygame.draw.rect(screen, color, self.rect, border_radius=8)
-        pygame.draw.rect(screen, (200, 200, 210), self.rect, 1, border_radius=8)
+        pygame.draw.rect(screen, (100, 100, 110), self.rect, 1, border_radius=8)
         
         # Desenhar ícone PNG se disponível
         if self.icon:
-            icon_rect = self.icon.get_rect(center=self.rect.center)
-            screen.blit(self.icon, icon_rect)
+            icon_copy = self.icon.copy()
+            # Colorir ícone para preto (se tiver transparência)
+            icon_copy.fill((0, 0, 0, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            icon_rect = icon_copy.get_rect(center=self.rect.center)
+            screen.blit(icon_copy, icon_rect)
         else:
             # Fallback para texto se ícone não estiver disponível
             font = pygame.font.Font(None, 16)
@@ -150,8 +153,8 @@ class Media:
                 button_width,
                 button_height,
                 mode_text,
-                color=(211, 213, 219),
-                active_color=(200, 200, 207)
+                color=(100, 100, 110),
+                active_color=(120, 160, 255)
             )
             btn.is_active = (self.transform_mode == mode_key)
             btn.mode = mode_key
@@ -164,8 +167,8 @@ class Media:
             button_width,
             button_height,
             'Deletar',
-            color=(255, 100, 100),
-            active_color=(255, 150, 150)
+            color=(200, 80, 80),
+            active_color=(255, 120, 120)
         )
         delete_btn.mode = 'delete'
         self.buttons.append(delete_btn)
@@ -561,6 +564,7 @@ class ProjectionMapper:
         self.show_grid = False
         self.fullscreen = False
         self.show_layers_panel = True
+        self.show_help = False
         
         # Mídias carregadas
         self.medias = []
@@ -633,7 +637,7 @@ class ProjectionMapper:
             # Clique no resto = selecionar mídia
             else:
                 self.current_media = media
-                print(f"Mídia selecionada: {media.name}")
+                pass  # Mídia selecionada
                 return True
         
         return False
@@ -737,6 +741,10 @@ class ProjectionMapper:
                     pass  # Abrindo diálogo
                     self.open_file_dialog()
                 
+                # Mostrar ajuda (tecla H - Help)
+                elif event.key == pygame.K_h:
+                    self.show_help = not self.show_help
+                
                 # Sair
                 elif event.key == pygame.K_ESCAPE:
                     self.running = False
@@ -824,6 +832,10 @@ class ProjectionMapper:
         if self.show_layers_panel and self.edit_mode:
             self.draw_layers_panel()
         
+        # Desenhar tela de ajuda se solicitada
+        if self.show_help:
+            self.draw_help_screen()
+        
         pygame.display.flip()
     
     def draw_layers_panel(self):
@@ -885,35 +897,107 @@ class ProjectionMapper:
             y += self.layer_height
     
     def draw_instructions(self):
-        """Desenhar instruções na tela"""
-        font = pygame.font.Font(None, 24)
-        mode_names = {
-            'perspective': 'PERSPECTIVA',
-            'move': 'MOVER',
-            'resize': 'REDIMENSIONAR',
-            'rotate': 'ROTACIONAR'
-        }
+        """Desenhar mensagem de ajuda"""
+        font = pygame.font.Font(None, 20)
+        text = "Aperte H para ver os comandos"
+        surface = font.render(text, True, (180, 180, 190))
+        self.screen.blit(surface, (10, 10))
+    
+    def draw_help_screen(self):
+        """Desenhar tela de ajuda com tabela de comandos"""
+        # Semi-overlay escuro
+        overlay = pygame.Surface((self.screen_width, self.screen_height))
+        overlay.set_alpha(220)
+        overlay.fill((0, 0, 0))
+        self.screen.blit(overlay, (0, 0))
         
-        current_mode = mode_names.get(self.current_media.transform_mode, 'EDIÇÃO') if self.current_media else 'EDIÇÃO'
-        
-        instructions = [
-            f"MODO: {current_mode} | Mídias: {len(self.medias)}",
-            "1-Perspectiva 2-Mover 3-Resize 4-Rotar | L-Painel de Camadas",
-            "I-Importar | E-Edição | M-Grid | F-Fullscreen | D-Deletar | ESC-Sair"
+        # Dados dos comandos: (ícone_type, atalho, descrição)
+        commands = [
+            ('perspective', '1', 'Modo Perspectiva'),
+            ('move', '2', 'Modo Mover'),
+            ('resize', '3', 'Modo Redimensionar'),
+            ('rotate', '4', 'Modo Rotacionar'),
+            ('delete', 'D', 'Deletar Mídia'),
+            (None, 'E', 'Alternar Edição'),
+            (None, 'I', 'Importar Mídia'),
+            (None, 'M', 'Alternar Grid'),
+            (None, 'L', 'Painel de Camadas'),
+            (None, 'F', 'Tela Cheia'),
+            (None, 'H', 'Mostrar Ajuda'),
+            (None, 'ESC', 'Sair'),
         ]
         
-        y = 10
-        for text in instructions:
-            surface = font.render(text, True, (255, 255, 0))
-            # Fundo semi-transparente
-            bg_rect = surface.get_rect(topleft=(10, y))
-            bg_rect.inflate_ip(10, 5)
-            s = pygame.Surface(bg_rect.size)
-            s.set_alpha(180)
-            s.fill((0, 0, 0))
-            self.screen.blit(s, bg_rect)
-            self.screen.blit(surface, (10, y))
-            y += 25
+        # Cabeçalho
+        title_font = pygame.font.Font(None, 36)
+        title = title_font.render("COMANDOS", True, (200, 200, 210))
+        title_rect = title.get_rect(center=(self.screen_width // 2, 30))
+        self.screen.blit(title, title_rect)
+        
+        # Tabela
+        row_height = 50
+        col_widths = [80, 120, 400]  # ícone, atalho, descrição
+        start_x = (self.screen_width - sum(col_widths)) // 2
+        start_y = 100
+        
+        # Cabeçalhos das colunas
+        header_font = pygame.font.Font(None, 20)
+        headers = ['Ícone', 'Atalho', 'Descrição']
+        header_colors = [(100, 160, 255), (100, 160, 255), (100, 160, 255)]
+        
+        x = start_x
+        for i, header in enumerate(headers):
+            text_surface = header_font.render(header, True, header_colors[i])
+            text_rect = text_surface.get_rect(topleft=(x + 10, start_y))
+            self.screen.blit(text_surface, text_rect)
+            
+            # Linha de separação
+            pygame.draw.line(self.screen, (80, 80, 90), 
+                           (x, start_y + 30), 
+                           (x + col_widths[i], start_y + 30), 2)
+            x += col_widths[i]
+        
+        # Linhas de comando
+        y = start_y + 50
+        small_font = pygame.font.Font(None, 18)
+        
+        for idx, (icon_type, shortcut, description) in enumerate(commands):
+            # Fundo alternado para melhor legibilidade
+            if idx % 2 == 0:
+                pygame.draw.rect(self.screen, (40, 40, 50), 
+                               (start_x, y - 5, sum(col_widths), row_height))
+            
+            # Ícone
+            if icon_type:
+                icon = Button.icon_cache.get(icon_type)
+                if icon:
+                    icon_copy = icon.copy()
+                    icon_copy.fill((100, 160, 255, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                    icon_rect = icon_copy.get_rect(center=(start_x + col_widths[0] // 2, y + row_height // 2 - 5))
+                    self.screen.blit(icon_copy, icon_rect)
+            
+            # Atalho (tecla)
+            x = start_x + col_widths[0]
+            text_surface = small_font.render(shortcut, True, (200, 200, 210))
+            text_rect = text_surface.get_rect(topleft=(x + 10, y + 5))
+            self.screen.blit(text_surface, text_rect)
+            
+            # Descrição
+            x += col_widths[1]
+            text_surface = small_font.render(description, True, (200, 200, 210))
+            text_rect = text_surface.get_rect(topleft=(x + 10, y + 5))
+            self.screen.blit(text_surface, text_rect)
+            
+            # Linha separadora
+            y += row_height
+            pygame.draw.line(self.screen, (60, 60, 70), 
+                           (start_x, y - row_height + 48), 
+                           (start_x + sum(col_widths), y - row_height + 48), 1)
+        
+        # Instrução de fechamento
+        close_font = pygame.font.Font(None, 18)
+        close_text = close_font.render("Pressione H para fechar", True, (150, 150, 160))
+        close_rect = close_text.get_rect(center=(self.screen_width // 2, self.screen_height - 30))
+        self.screen.blit(close_text, close_rect)
     
     def run(self):
         """Loop principal"""
