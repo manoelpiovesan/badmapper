@@ -8,6 +8,9 @@ import math
 
 class Button:
     """Botão clicável na interface"""
+    # Cache de ícones carregados
+    icon_cache = {}
+    
     def __init__(self, x, y, width, height, text, color=(100, 100, 100), active_color=(150, 150, 150)):
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
@@ -15,16 +18,54 @@ class Button:
         self.active_color = active_color
         self.is_active = False
         self.hover = False
+        self.icon = None
+        
+        # Mapear texto para ícone
+        icon_map = {
+            'Perspectiva': 'perspective',
+            'Mover': 'move',
+            'Redimensionar': 'resize',
+            'Rotacionar': 'rotate',
+            'Deletar': 'delete'
+        }
+        self.icon_type = icon_map.get(text, None)
+        
+        # Carregar ícone PNG
+        if self.icon_type:
+            self.load_icon()
+    
+    def load_icon(self):
+        """Carregar ícone PNG uma vez e cachear"""
+        if self.icon_type in Button.icon_cache:
+            self.icon = Button.icon_cache[self.icon_type]
+            return
+        
+        icon_path = os.path.join(os.path.dirname(__file__), 'icons', f'{self.icon_type}.png')
+        if os.path.exists(icon_path):
+            try:
+                icon = pygame.image.load(icon_path)
+                # Redimensionar para 24x24
+                icon = pygame.transform.scale(icon, (24, 24))
+                Button.icon_cache[self.icon_type] = icon
+                self.icon = icon
+            except Exception as e:
+                print(f"Erro ao carregar ícone {icon_path}: {e}")
     
     def draw(self, screen):
-        color = self.active_color if self.is_active else (self.color if not self.hover else (120, 120, 120))
-        pygame.draw.rect(screen, color, self.rect, border_radius=5)
-        pygame.draw.rect(screen, (200, 200, 200), self.rect, 2, border_radius=5)
+        color = self.active_color if self.is_active else (self.color if not self.hover else (225, 227, 232))
+        pygame.draw.rect(screen, color, self.rect, border_radius=8)
+        pygame.draw.rect(screen, (200, 200, 210), self.rect, 1, border_radius=8)
         
-        font = pygame.font.Font(None, 24)
-        text_surface = font.render(self.text, True, (255, 255, 255))
-        text_rect = text_surface.get_rect(center=self.rect.center)
-        screen.blit(text_surface, text_rect)
+        # Desenhar ícone PNG se disponível
+        if self.icon:
+            icon_rect = self.icon.get_rect(center=self.rect.center)
+            screen.blit(self.icon, icon_rect)
+        else:
+            # Fallback para texto se ícone não estiver disponível
+            font = pygame.font.Font(None, 16)
+            text_surface = font.render(self.text, True, (255, 255, 255))
+            text_rect = text_surface.get_rect(center=self.rect.center)
+            screen.blit(text_surface, text_rect)
     
     def handle_event(self, event):
         if event.type == pygame.MOUSEMOTION:
@@ -109,8 +150,8 @@ class Media:
                 button_width,
                 button_height,
                 mode_text,
-                color=(70, 70, 150),
-                active_color=(100, 150, 255)
+                color=(211, 213, 219),
+                active_color=(200, 200, 207)
             )
             btn.is_active = (self.transform_mode == mode_key)
             btn.mode = mode_key
@@ -123,8 +164,8 @@ class Media:
             button_width,
             button_height,
             'Deletar',
-            color=(150, 30, 30),
-            active_color=(200, 50, 50)
+            color=(255, 100, 100),
+            active_color=(255, 150, 150)
         )
         delete_btn.mode = 'delete'
         self.buttons.append(delete_btn)
@@ -244,14 +285,14 @@ class Media:
         
         # Linhas verticais
         for i in range(0, w, 50):
-            cv2.line(grid, (i, 0), (i, h), (255, 255, 255), 2)
+            cv2.line(grid, (i, 0), (i, h), (180, 180, 190), 1)
         
         # Linhas horizontais
         for i in range(0, h, 50):
-            cv2.line(grid, (0, i), (w, i), (255, 255, 255), 2)
+            cv2.line(grid, (0, i), (w, i), (180, 180, 190), 1)
         
         # Borda
-        cv2.rectangle(grid, (0, 0), (w-1, h-1), (0, 255, 0), 4)
+        cv2.rectangle(grid, (0, 0), (w-1, h-1), (100, 160, 255), 3)
         
         return grid
     
@@ -317,7 +358,7 @@ class Media:
             return
         
         # Desenhar linhas entre os cantos
-        line_color = (0, 255, 255) if is_active else (100, 100, 100)
+        line_color = (100, 160, 255) if is_active else (150, 150, 160)
         line_width = 2 if is_active else 1
         for i in range(4):
             p1 = tuple(self.corners[i].astype(int))
@@ -329,29 +370,29 @@ class Media:
             if self.transform_mode == 'perspective':
                 # Desenhar cantos para perspectiva
                 for i, corner in enumerate(self.corners):
-                    color = (255, 0, 0) if i == self.selected_corner else (255, 255, 0)
+                    color = (255, 100, 100) if i == self.selected_corner else (100, 160, 255)
                     pygame.draw.circle(screen, color, corner.astype(int), 8, 0)
-                    pygame.draw.circle(screen, (0, 0, 0), corner.astype(int), 8, 2)
+                    pygame.draw.circle(screen, (255, 255, 255), corner.astype(int), 8, 1)
             
             elif self.transform_mode == 'move':
                 # Mostrar apenas o contorno
                 center = self.get_center().astype(int)
-                pygame.draw.circle(screen, (0, 255, 0), center, 10, 0)
-                pygame.draw.circle(screen, (0, 0, 0), center, 10, 2)
+                pygame.draw.circle(screen, (100, 200, 100), center, 10, 0)
+                pygame.draw.circle(screen, (255, 255, 255), center, 10, 1)
             
             elif self.transform_mode == 'resize':
                 # Desenhar cantos como pontos de redimensionamento
                 for corner in self.corners:
-                    pygame.draw.rect(screen, (255, 0, 255), 
+                    pygame.draw.rect(screen, (150, 150, 255), 
                                    (corner[0] - 6, corner[1] - 6, 12, 12))
-                    pygame.draw.rect(screen, (0, 0, 0), 
-                                   (corner[0] - 6, corner[1] - 6, 12, 12), 2)
+                    pygame.draw.rect(screen, (255, 255, 255), 
+                                   (corner[0] - 6, corner[1] - 6, 12, 12), 1)
             
             elif self.transform_mode == 'rotate':
                 # Desenhar círculo de rotação
                 center = self.get_center().astype(int)
-                pygame.draw.circle(screen, (255, 128, 0), center, 12, 0)
-                pygame.draw.circle(screen, (0, 0, 0), center, 12, 2)
+                pygame.draw.circle(screen, (100, 160, 255), center, 12, 0)
+                pygame.draw.circle(screen, (255, 255, 255), center, 12, 1)
                 
                 # Desenhar linha de indicação de ângulo
                 radius = 80
@@ -382,7 +423,7 @@ class Media:
                 self.transform_mode = button.mode
                 for btn in self.buttons:
                     btn.is_active = (btn.mode == self.transform_mode)
-                print(f"Modo alterado para: {self.transform_mode}")
+                pass  # Modo alterado
                 return True
         
         # Comportamento específico por modo
@@ -537,7 +578,7 @@ class ProjectionMapper:
             media = Media(filepath, x=100 + offset, y=100 + offset)
             self.medias.append(media)
             self.current_media = media
-            print(f"Mídia carregada: {filepath} (Total: {len(self.medias)})") 
+            pass  # Mídia carregada 
     
     def select_media_at_point(self, point):
         """Selecionar mídia que contém o ponto clicado"""
@@ -545,7 +586,7 @@ class ProjectionMapper:
             if media.visible and media.contains_point(point):
                 if media != self.current_media:
                     self.current_media = media
-                    print(f"Mídia selecionada: {media.name}")
+                    pass  # Mídia selecionada
                 return True
         return False
     
@@ -570,7 +611,7 @@ class ProjectionMapper:
             # Verificar clique no botão de visibilidade (primeiros 30px)
             if x < panel_x + 30:
                 media.visible = not media.visible
-                print(f"{media.name}: {'Visível' if media.visible else 'Oculto'}")
+                pass  # Visibilidade alterada
                 return True
             
             # Verificar botões de reordenar (próximos 60px)
@@ -580,13 +621,13 @@ class ProjectionMapper:
                     if layer_index > 0:
                         self.medias[layer_index], self.medias[layer_index - 1] = \
                             self.medias[layer_index - 1], self.medias[layer_index]
-                        print(f"{media.name} movido para cima")
+                        pass  # Mídia movida para cima
                 else:
                     # Botão down
                     if layer_index < len(self.medias) - 1:
                         self.medias[layer_index], self.medias[layer_index + 1] = \
                             self.medias[layer_index + 1], self.medias[layer_index]
-                        print(f"{media.name} movido para baixo")
+                        pass  # Mídia movida para baixo
                 return True
             
             # Clique no resto = selecionar mídia
@@ -649,24 +690,24 @@ class ProjectionMapper:
                 # Toggle modo de edição
                 if event.key == pygame.K_e:
                     self.edit_mode = not self.edit_mode
-                    print(f"Modo de edição: {'ON' if self.edit_mode else 'OFF'}")
+                    pass
                 
                 # Atalhos numéricos para modos (1=Perspectiva, 2=Mover, 3=Redimensionar, 4=Rotacionar)
                 elif event.key == pygame.K_1 and self.current_media:
                     self.current_media.set_mode('perspective')
-                    print("Modo: Perspectiva")
+                    pass
                 
                 elif event.key == pygame.K_2 and self.current_media:
                     self.current_media.set_mode('move')
-                    print("Modo: Mover")
+                    pass
                 
                 elif event.key == pygame.K_3 and self.current_media:
                     self.current_media.set_mode('resize')
-                    print("Modo: Redimensionar")
+                    pass
                 
                 elif event.key == pygame.K_4 and self.current_media:
                     self.current_media.set_mode('rotate')
-                    print("Modo: Rotacionar")
+                    pass
                 
                 # Deletar mídia (tecla DELETE ou D)
                 elif event.key in [pygame.K_DELETE, pygame.K_d] and self.current_media:
@@ -674,26 +715,26 @@ class ProjectionMapper:
                         self.current_media.cleanup()
                         self.medias.remove(self.current_media)
                         self.current_media = self.medias[-1] if self.medias else None
-                        print(f"Mídia deletada. Mídias restantes: {len(self.medias)}")
+                        pass
                 
                 # Toggle grid
                 elif event.key == pygame.K_m:
                     self.show_grid = not self.show_grid
-                    print(f"Grid: {'ON' if self.show_grid else 'OFF'}")
+                    pass  # Grid alterado
                 
                 # Toggle tela cheia
                 elif event.key == pygame.K_f:
                     self.toggle_fullscreen()
-                    print(f"Tela cheia: {'ON' if self.fullscreen else 'OFF'}")
+                    pass
                 
                 # Toggle painel de camadas
                 elif event.key == pygame.K_l:
                     self.show_layers_panel = not self.show_layers_panel
-                    print(f"Painel de camadas: {'ON' if self.show_layers_panel else 'OFF'}")
+                    pass  # Painel alterado
                 
                 # Carregar mídia (tecla I - Import)
                 elif event.key == pygame.K_i:
-                    print("Abrindo diálogo de seleção...")
+                    pass  # Abrindo diálogo
                     self.open_file_dialog()
                 
                 # Sair
@@ -712,7 +753,7 @@ class ProjectionMapper:
                             self.current_media.cleanup()
                             self.medias.remove(self.current_media)
                             self.current_media = self.medias[-1] if self.medias else None
-                            print(f"Mídia deletada. Mídias restantes: {len(self.medias)}")
+                            pass
                         elif not result:
                             # Se não clicou em controles, tentar selecionar outra mídia
                             self.select_media_at_point(event.pos)
@@ -738,9 +779,13 @@ class ProjectionMapper:
     def render(self):
         """Renderizar tela"""
         # Tela preta
-        self.screen.fill((0, 0, 0))
+        self.screen.fill((25, 25, 25))
         
-        # Renderizar todas as mídias visíveis diretamente
+        # Buffer para composição de mídias
+        buffer = np.zeros((self.screen_height, self.screen_width, 3), dtype=np.uint8)
+        buffer_alpha = np.zeros((self.screen_height, self.screen_width), dtype=np.uint8)
+        
+        # Renderizar todas as mídias visíveis
         for media in self.medias:
             if not media.visible:
                 continue
@@ -754,20 +799,15 @@ class ProjectionMapper:
             if result is not None:
                 transformed, mask = result
                 
-                # Converter numpy array diretamente para pygame surface
-                # Usar máscara para transparência
-                surface = pygame.surfarray.make_surface(transformed.swapaxes(0, 1))
-                
-                # Aplicar máscara como alpha channel (muito mais rápido)
-                alpha_surface = pygame.Surface((self.screen_width, self.screen_height))
-                alpha_surface.blit(surface, (0, 0))
-                
-                # Criar superfície com transparência usando a máscara
-                alpha_array = pygame.surfarray.array_alpha(alpha_surface)
-                alpha_array[:] = mask.T
-                
-                # Blitar com transparência
-                self.screen.blit(alpha_surface, (0, 0))
+                # Aplicar máscara para composição correta
+                for c in range(3):
+                    buffer[mask > 0, c] = transformed[mask > 0, c]
+                buffer_alpha[mask > 0] = 255
+        
+        # Converter buffer numpy para pygame surface e blitar
+        if np.any(buffer_alpha > 0):
+            surface = pygame.surfarray.make_surface(buffer.swapaxes(0, 1))
+            self.screen.blit(surface, (0, 0))
         
         # Desenhar controles de edição APÓS as mídias
         for media in self.medias:
@@ -792,13 +832,13 @@ class ProjectionMapper:
         
         # Fundo do painel
         panel_surface = pygame.Surface((self.panel_width, self.screen_height))
-        panel_surface.set_alpha(220)
-        panel_surface.fill((30, 30, 30))
+        panel_surface.set_alpha(240)
+        panel_surface.fill((240, 240, 245))
         self.screen.blit(panel_surface, (panel_x, 0))
         
         # Cabeçalho
         font = pygame.font.Font(None, 24)
-        header = font.render("CAMADAS (L)", True, (255, 255, 255))
+        header = font.render("CAMADAS (L)", True, (50, 50, 50))
         self.screen.blit(header, (panel_x + 10, 10))
         
         # Desenhar cada camada
@@ -807,18 +847,18 @@ class ProjectionMapper:
             is_active = (media == self.current_media)
             
             # Fundo da camada
-            layer_color = (60, 60, 100) if is_active else (50, 50, 50)
+            layer_color = (200, 210, 255) if is_active else (230, 230, 235)
             pygame.draw.rect(self.screen, layer_color, 
                            (panel_x + 5, y, self.panel_width - 10, self.layer_height - 5))
             
             # Botão de visibilidade
-            eye_color = (0, 255, 0) if media.visible else (150, 150, 150)
+            eye_color = (100, 160, 255) if media.visible else (180, 180, 190)
             pygame.draw.circle(self.screen, eye_color, (panel_x + 15, y + 15), 8)
             
             # Botões de reordenar
             # Seta para cima
             if i > 0:
-                pygame.draw.polygon(self.screen, (200, 200, 200), [
+                pygame.draw.polygon(self.screen, (100, 100, 110), [
                     (panel_x + 40, y + 12),
                     (panel_x + 45, y + 7),
                     (panel_x + 50, y + 12)
@@ -826,7 +866,7 @@ class ProjectionMapper:
             
             # Seta para baixo
             if i < len(self.medias) - 1:
-                pygame.draw.polygon(self.screen, (200, 200, 200), [
+                pygame.draw.polygon(self.screen, (100, 100, 110), [
                     (panel_x + 40, y + 23),
                     (panel_x + 45, y + 28),
                     (panel_x + 50, y + 23)
@@ -835,11 +875,11 @@ class ProjectionMapper:
             # Nome da mídia (truncado)
             small_font = pygame.font.Font(None, 18)
             name = media.name[:20] + '...' if len(media.name) > 20 else media.name
-            name_surface = small_font.render(name, True, (255, 255, 255))
+            name_surface = small_font.render(name, True, (50, 50, 50))
             self.screen.blit(name_surface, (panel_x + 60, y + 5))
             
             # Índice
-            index_surface = small_font.render(f"#{i+1}", True, (150, 150, 150))
+            index_surface = small_font.render(f"#{i+1}", True, (150, 150, 160))
             self.screen.blit(index_surface, (panel_x + 60, y + 25))
             
             y += self.layer_height
