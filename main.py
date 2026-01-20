@@ -71,6 +71,9 @@ class Media:
         self.buttons = []
         self.update_buttons()
         
+        # Carregar mídia
+        self.load_frame()
+        
     def update_buttons(self):
         """Atualizar posição dos botões acima da mídia"""
         # Calcular centro superior da mídia
@@ -102,16 +105,17 @@ class Media:
             btn.mode = mode_key
             self.buttons.append(btn)
     
-        # Carregar mídia
+    def load_frame(self):
+        """Carregar mídia"""
         if self.is_video:
-            self.cap = cv2.VideoCapture(filepath)
+            self.cap = cv2.VideoCapture(self.filepath)
             self.frame = None
             ret, frame = self.cap.read()
             if ret:
                 self.frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 self.original_size = (frame.shape[1], frame.shape[0])
         else:
-            img = cv2.imread(filepath)
+            img = cv2.imread(self.filepath)
             if img is not None:
                 self.frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 self.original_size = (img.shape[1], img.shape[0])
