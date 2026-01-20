@@ -26,6 +26,7 @@ class Button:
             'Mover': 'move',
             'Redimensionar': 'resize',
             'Rotacionar': 'rotate',
+            'Crop': 'crop',
             'Deletar': 'delete'
         }
         self.icon_type = icon_map.get(text, None)
@@ -98,7 +99,7 @@ class Media:
         self.selected_corner = -1
         self.dragging = False
         
-        # Modo de transformação: 'perspective', 'move', 'resize', 'rotate'
+        # Modo de transformação: 'perspective', 'move', 'resize', 'rotate', 'crop'
         self.transform_mode = 'perspective'
         
         # Para modo de movimento
@@ -114,9 +115,14 @@ class Media:
         self.initial_corners = None
         self.initial_mouse_pos = None
         
+        # Para modo de crop (normalizado em relação à imagem original: 0.0 a 1.0)
+        self.crop_box = np.float32([0.0, 0.0, 1.0, 1.0])  # [left, top, right, bottom]
+        self.crop_dragging = None  # Qual lado está sendo arrastado
+        
         # Cache de transformação (para imagens)
         self.cached_transform = None
         self.cached_corners = None
+        self.cached_crop_box = None
         
         # Controle de frames para vídeos (renderizar a cada N frames)
         self.frame_skip = 0
@@ -139,8 +145,8 @@ class Media:
         button_height = 35
         spacing = 10
         
-        modes = ['Perspectiva', 'Mover', 'Redimensionar', 'Rotacionar']
-        mode_keys = ['perspective', 'move', 'resize', 'rotate']
+        modes = ['Perspectiva', 'Mover', 'Redimensionar', 'Rotacionar', 'Crop']
+        mode_keys = ['perspective', 'move', 'resize', 'rotate', 'crop']
         
         total_width = len(modes) * button_width + (len(modes) - 1) * spacing + button_width + spacing
         start_x = top_center_x - total_width / 2
@@ -204,11 +210,15 @@ class Media:
         if self.frame is None:
             return None
         
-        # Para imagens estáticas, usar cache se os cantos não mudaram
-        if not self.is_video:
-            if (self.cached_transform is not None and 
+        # Para imagens estáticas, usar cache se os cantos e crop não mudaram (não cachear grid)
+        if not self.is_video and not show_grid:
+            if (
+                self.cached_transform is not None and 
                 self.cached_corners is not None and
-                np.array_equal(self.cached_corners, self.corners)):
+                self.cached_crop_box is not None and
+                np.array_equal(self.cached_corners, self.corners) and
+                np.array_equal(self.cached_crop_box, self.crop_box)
+            ):
                 return self.cached_transform
         
         # Se mostrar grid, criar imagem de grid
@@ -217,9 +227,19 @@ class Media:
             src_img = grid_img
         else:
             src_img = self.frame
-        
-        # Pontos de origem (retângulo original da imagem)
+
+        # Aplicar crop SEMPRE (independente do modo), se houver
         h, w = src_img.shape[:2]
+        left, top, right, bottom = float(self.crop_box[0]), float(self.crop_box[1]), float(self.crop_box[2]), float(self.crop_box[3])
+        if (left > 0.0 or top > 0.0 or right < 1.0 or bottom < 1.0):
+            crop_left = int(max(0, min(left, 1.0)) * w)
+            crop_top = int(max(0, min(top, 1.0)) * h)
+            crop_right = int(max(crop_left + 1, min(right, 1.0) * w))
+            crop_bottom = int(max(crop_top + 1, min(bottom, 1.0) * h))
+            src_img = src_img[crop_top:crop_bottom, crop_left:crop_right]
+            h, w = src_img.shape[:2]
+        
+        # Pontos de origem (retângulo da imagem atual — já com crop aplicado)
         src_points = np.float32([
             [0, 0],
             [w, 0],
@@ -243,10 +263,11 @@ class Media:
         
         transformed = (result, transformed_mask)
         
-        # Cachear se for imagem
-        if not self.is_video:
+        # Cachear se for imagem e não estiver mostrando grid
+        if not self.is_video and not show_grid:
             self.cached_transform = transformed
             self.cached_corners = self.corners.copy()
+            self.cached_crop_box = self.crop_box.copy()
         
         return transformed
     
@@ -311,7 +332,7 @@ class Media:
     
     def set_mode(self, mode):
         """Alterar modo de transformação"""
-        if mode in ['perspective', 'move', 'resize', 'rotate']:
+        if mode in ['perspective', 'move', 'resize', 'rotate', 'crop']:
             self.transform_mode = mode
             for btn in self.buttons:
                 btn.is_active = (btn.mode == mode)
@@ -354,6 +375,102 @@ class Media:
         result = np.float32(new_corners)
         self.cached_transform = None
         return result
+    
+    def get_crop_screen_coords(self):
+        """Converter crop box normalizado para coordenadas de tela (quadrilátero transformado)"""
+        # Calcular os 4 cantos do crop box em relação à imagem original
+        crop_corners = np.float32([
+            [self.crop_box[0], self.crop_box[1]],
+            [self.crop_box[2], self.crop_box[1]],
+            [self.crop_box[2], self.crop_box[3]],
+            [self.crop_box[0], self.crop_box[3]]
+        ])
+        # Desnormalizar para pixels da imagem original
+        h, w = self.frame.shape[:2]
+        crop_corners_px = crop_corners * np.array([w, h])
+        
+        # Aplicar a transformação de perspectiva para coordenadas de tela
+        src_points = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+        matrix = cv2.getPerspectiveTransform(src_points, self.corners)
+        
+        # Transformar os pontos de crop para coordenadas de tela
+        crop_corners_px_int = np.array(crop_corners_px, dtype=np.float32).reshape(-1, 1, 2)
+        transformed = cv2.perspectiveTransform(crop_corners_px_int, matrix)
+        
+        return transformed.reshape(-1, 2)
+    
+    def draw_crop_overlay(self, screen):
+        """Desenhar overlay de crop estilo Google Slides"""
+        if self.frame is None:
+            return
+        
+        # Obter coordenadas de tela do crop box
+        crop_coords = self.get_crop_screen_coords()
+        
+        # Criar overlay semi-transparente fora da área de crop
+        overlay = pygame.Surface(screen.get_size())
+        overlay.set_alpha(180)
+        overlay.fill((0, 0, 0))
+        screen.blit(overlay, (0, 0))
+        
+        # Desenhar retângulo branco sobre a área a ser preservada (limpar o overlay)
+        crop_points = crop_coords.astype(int)
+        pygame.draw.polygon(screen, (50, 50, 50), crop_points)
+        
+        # Desenhar guias de grade (3x3) dentro da área de crop
+        for i in range(1, 3):
+            # Linhas verticais
+            p1 = crop_points[0] + (crop_points[1] - crop_points[0]) * (i / 3)
+            p2 = crop_points[3] + (crop_points[2] - crop_points[3]) * (i / 3)
+            pygame.draw.line(screen, (100, 160, 255), p1.astype(int), p2.astype(int), 1)
+            
+            # Linhas horizontais
+            p1 = crop_points[0] + (crop_points[3] - crop_points[0]) * (i / 3)
+            p2 = crop_points[1] + (crop_points[2] - crop_points[1]) * (i / 3)
+            pygame.draw.line(screen, (100, 160, 255), p1.astype(int), p2.astype(int), 1)
+        
+        # Desenhar borda principal do crop box
+        for i in range(4):
+            p1 = crop_points[i]
+            p2 = crop_points[(i + 1) % 4]
+            pygame.draw.line(screen, (200, 200, 210), p1, p2, 2)
+        
+        # Desenhar alças nos cantos e meios das bordas
+        handle_size = 6
+        handle_color = (120, 160, 255)
+        
+        # Cantos
+        for point in crop_points:
+            pygame.draw.circle(screen, handle_color, point.astype(int), handle_size)
+            pygame.draw.circle(screen, (255, 255, 255), point.astype(int), handle_size, 1)
+        
+        # Meios das bordas
+        for i in range(4):
+            mid = (crop_points[i] + crop_points[(i + 1) % 4]) / 2
+            pygame.draw.circle(screen, handle_color, mid.astype(int), handle_size)
+            pygame.draw.circle(screen, (255, 255, 255), mid.astype(int), handle_size, 1)
+    
+    def get_crop_handle_at_point(self, point, tolerance=15):
+        """Detectar qual alça de crop está sendo clicada"""
+        if self.frame is None:
+            return None
+        
+        crop_coords = self.get_crop_screen_coords()
+        
+        # Verificar cantos
+        for i, corner in enumerate(crop_coords):
+            dist = np.linalg.norm(corner - np.array(point))
+            if dist < tolerance:
+                return f'corner_{i}'
+        
+        # Verificar meios das bordas
+        for i in range(4):
+            mid = (crop_coords[i] + crop_coords[(i + 1) % 4]) / 2
+            dist = np.linalg.norm(mid - np.array(point))
+            if dist < tolerance:
+                return f'edge_{i}'
+        
+        return None
     
     def draw_controls(self, screen, edit_mode, is_active=True):
         """Desenhar controles de edição"""
@@ -403,6 +520,10 @@ class Media:
                 end_x = center[0] + radius * math.cos(angle_rad)
                 end_y = center[1] + radius * math.sin(angle_rad)
                 pygame.draw.line(screen, (255, 128, 0), center, (int(end_x), int(end_y)), 2)
+            
+            elif self.transform_mode == 'crop':
+                # Desenhar overlay de crop estilo Google Slides
+                self.draw_crop_overlay(screen)
             
             # Desenhar botões
             self.update_buttons()
@@ -469,6 +590,14 @@ class Media:
             self.initial_angle = math.atan2(dy, dx)
             return True
         
+        elif self.transform_mode == 'crop':
+            # Verificar clique nas alças de crop
+            handle = self.get_crop_handle_at_point(pos)
+            if handle:
+                self.crop_dragging = handle
+                self.dragging = True
+                return True
+        
         return False
     
     def handle_mouse_up(self):
@@ -480,6 +609,7 @@ class Media:
         self.initial_corners = None
         self.initial_mouse_pos = None
         self.rotation_center = None
+        self.crop_dragging = None
     
     def handle_mouse_move(self, pos):
         """Tratar movimento do mouse"""
@@ -538,6 +668,53 @@ class Media:
                 
                 # Atualizar ângulo inicial para próximo frame
                 self.initial_angle = current_angle
+        
+        elif self.transform_mode == 'crop':
+            if self.crop_dragging and self.frame is not None:
+                # Converter posição de tela para coordenadas da imagem (inverso da perspectiva)
+                h, w = self.frame.shape[:2]
+                src_points = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+                inv_matrix = cv2.getPerspectiveTransform(self.corners, src_points)
+
+                pos_array = np.array([[[pos[0], pos[1]]]], dtype=np.float32)
+                img_pos = cv2.perspectiveTransform(pos_array, inv_matrix)[0][0]
+
+                # Normalizar em relação ao tamanho da imagem
+                norm_x = float(np.clip(img_pos[0] / w, 0.0, 1.0))
+                norm_y = float(np.clip(img_pos[1] / h, 0.0, 1.0))
+
+                # Atualizar crop box baseado no handle que está sendo arrastado
+                if self.crop_dragging == 'corner_0':  # Top-left
+                    self.crop_box[0] = norm_x
+                    self.crop_box[1] = norm_y
+                elif self.crop_dragging == 'corner_1':  # Top-right
+                    self.crop_box[2] = norm_x
+                    self.crop_box[1] = norm_y
+                elif self.crop_dragging == 'corner_2':  # Bottom-right
+                    self.crop_box[2] = norm_x
+                    self.crop_box[3] = norm_y
+                elif self.crop_dragging == 'corner_3':  # Bottom-left
+                    self.crop_box[0] = norm_x
+                    self.crop_box[3] = norm_y
+                elif self.crop_dragging == 'edge_0':  # Top
+                    self.crop_box[1] = norm_y
+                elif self.crop_dragging == 'edge_1':  # Right
+                    self.crop_box[2] = norm_x
+                elif self.crop_dragging == 'edge_2':  # Bottom
+                    self.crop_box[3] = norm_y
+                elif self.crop_dragging == 'edge_3':  # Left
+                    self.crop_box[0] = norm_x
+
+                # Clamp e ordenar
+                self.crop_box[0] = float(np.clip(self.crop_box[0], 0.0, 1.0))
+                self.crop_box[1] = float(np.clip(self.crop_box[1], 0.0, 1.0))
+                self.crop_box[2] = float(np.clip(self.crop_box[2], 0.0, 1.0))
+                self.crop_box[3] = float(np.clip(self.crop_box[3], 0.0, 1.0))
+
+                if self.crop_box[0] > self.crop_box[2]:
+                    self.crop_box[0], self.crop_box[2] = self.crop_box[2], self.crop_box[0]
+                if self.crop_box[1] > self.crop_box[3]:
+                    self.crop_box[1], self.crop_box[3] = self.crop_box[3], self.crop_box[1]
     
     def cleanup(self):
         """Liberar recursos"""
@@ -683,6 +860,18 @@ class ProjectionMapper:
             self.screen_width = 1280
             self.screen_height = 720
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+
+    def sync_all_videos(self):
+        """Reiniciar todos os vídeos no frame 0 simultaneamente."""
+        for media in self.medias:
+            if getattr(media, 'is_video', False) and getattr(media, 'cap', None) is not None:
+                try:
+                    media.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    ret, frame = media.cap.read()
+                    if ret:
+                        media.frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                except Exception:
+                    pass
     
     def handle_events(self):
         """Processar eventos"""
@@ -713,6 +902,10 @@ class ProjectionMapper:
                     self.current_media.set_mode('rotate')
                     pass
                 
+                elif event.key == pygame.K_5 and self.current_media:
+                    self.current_media.set_mode('crop')
+                    pass
+                
                 # Deletar mídia (tecla DELETE ou D)
                 elif event.key in [pygame.K_DELETE, pygame.K_d] and self.current_media:
                     if self.current_media in self.medias:
@@ -740,6 +933,10 @@ class ProjectionMapper:
                 elif event.key == pygame.K_i:
                     pass  # Abrindo diálogo
                     self.open_file_dialog()
+                
+                # Sincronizar vídeos (tecla S)
+                elif event.key == pygame.K_s:
+                    self.sync_all_videos()
                 
                 # Mostrar ajuda (tecla H - Help)
                 elif event.key == pygame.K_h:
@@ -917,11 +1114,13 @@ class ProjectionMapper:
             ('move', '2', 'Modo Mover'),
             ('resize', '3', 'Modo Redimensionar'),
             ('rotate', '4', 'Modo Rotacionar'),
+            ('crop', '5', 'Modo Crop'),
             ('delete', 'D', 'Deletar Mídia'),
             (None, 'E', 'Alternar Edição'),
             (None, 'I', 'Importar Mídia'),
             (None, 'M', 'Alternar Grid'),
             (None, 'L', 'Painel de Camadas'),
+            (None, 'S', 'Sincronizar Vídeos (iniciar no frame 0)'),
             (None, 'F', 'Tela Cheia'),
             (None, 'H', 'Mostrar Ajuda'),
             (None, 'ESC', 'Sair'),
