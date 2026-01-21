@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QMenuBar, QMenu, QAction
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 from core.mask import Mask, MaskType
 from core.media import Media
 from core.renderer import Renderer
@@ -18,6 +18,10 @@ class ProjectionMapper(QMainWindow):
 
         self.init_ui()
         self.create_initial_mask()
+
+        # Selecionar a primeira máscara por padrão
+        if self.masks:
+            self.control_window.selected_mask = self.masks[0]
 
     def init_ui(self):
         self.setWindowTitle("BadMapper3")
@@ -137,6 +141,21 @@ class ProjectionMapper(QMainWindow):
             self.projection_window.showNormal()
         else:
             self.projection_window.showFullScreen()
+
+    def keyPressEvent(self, event):
+        # F11 para fullscreen
+        if event.key() == Qt.Key_F11:
+            self.toggle_projection_fullscreen()
+        else:
+            # Repassar eventos de teclado para o control_window
+            self.control_window.keyPressEvent(event)
+
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        # Repassar eventos de teclado para o control_window
+        self.control_window.keyReleaseEvent(event)
+        super().keyReleaseEvent(event)
 
     def closeEvent(self, event):
         # Clean up media resources

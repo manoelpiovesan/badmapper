@@ -16,6 +16,10 @@ class Mask:
         self.media = None
         self.media_transform = MediaTransform()
 
+        # Transformações da máscara
+        self.rotation = 0.0
+        self.scale = 1.0
+
         if mask_type == MaskType.RECTANGLE:
             self.vertices = self._create_rectangle()
         elif mask_type == MaskType.TRIANGLE:
@@ -50,6 +54,44 @@ class Mask:
 
     def translate(self, dx, dy):
         self.vertices += np.array([dx, dy])
+
+    def rotate_mask(self, angle_delta):
+        """Rotaciona a máscara por um delta de ângulo, preservando perspectiva"""
+        self.rotation += angle_delta
+        center = self.get_center()
+
+        # Converter ângulo para radianos
+        angle_rad = np.radians(angle_delta)
+        cos_a = np.cos(angle_rad)
+        sin_a = np.sin(angle_rad)
+
+        # Matriz de rotação
+        rotation_matrix = np.array([
+            [cos_a, -sin_a],
+            [sin_a, cos_a]
+        ])
+
+        # Aplicar rotação nos vértices atuais (preserva perspectiva)
+        vertices_centered = self.vertices - center
+        vertices_rotated = vertices_centered @ rotation_matrix.T
+        self.vertices = (vertices_rotated + center).astype(np.float32)
+
+    def scale_mask(self, scale_delta):
+        """Escala a máscara por um delta de escala, preservando perspectiva"""
+        new_scale = max(0.1, 1.0 + scale_delta)
+        self.scale *= new_scale
+        center = self.get_center()
+
+        # Aplicar escala nos vértices atuais (preserva perspectiva)
+        vertices_centered = self.vertices - center
+        vertices_scaled = vertices_centered * new_scale
+        self.vertices = (vertices_scaled + center).astype(np.float32)
+
+    def reset_transform(self):
+        """Reseta rotação e escala da máscara"""
+        self.rotation = 0.0
+        self.scale = 1.0
+        self.vertices = self.original_vertices.copy()
 
     def get_bounds(self):
         min_x = np.min(self.vertices[:, 0])
