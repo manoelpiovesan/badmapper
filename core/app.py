@@ -19,37 +19,37 @@ class ProjectionMapper(QMainWindow):
         self.init_ui()
         self.create_initial_mask()
 
-        # Selecionar a primeira máscara por padrão
+        # Select first mask by default
         if self.masks:
             self.control_window.selected_mask = self.masks[0]
 
     def init_ui(self):
-        self.setWindowTitle("BadMapper3")
+        self.setWindowTitle("BadMapper - Editor")
 
         # Create menu bar
         menubar = self.menuBar()
 
         # File menu
-        file_menu = menubar.addMenu('Arquivo')
+        file_menu = menubar.addMenu('File')
 
-        add_mask_action = QAction('Nova Máscara', self)
+        add_mask_action = QAction('New Mask', self)
         add_mask_action.triggered.connect(self.add_mask_dialog)
         file_menu.addAction(add_mask_action)
 
         file_menu.addSeparator()
 
-        exit_action = QAction('Sair', self)
+        exit_action = QAction('Exit', self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # View menu
-        view_menu = menubar.addMenu('Visualizar')
+        view_menu = menubar.addMenu('View')
 
-        toggle_projection_action = QAction('Janela de Projeção', self)
+        toggle_projection_action = QAction('Projection Window', self)
         toggle_projection_action.triggered.connect(self.toggle_projection_window)
         view_menu.addAction(toggle_projection_action)
 
-        fullscreen_action = QAction('Projeção Fullscreen (F11)', self)
+        fullscreen_action = QAction('Projection Fullscreen (F11)', self)
         fullscreen_action.triggered.connect(self.toggle_projection_fullscreen)
         view_menu.addAction(fullscreen_action)
 
@@ -77,19 +77,19 @@ class ProjectionMapper(QMainWindow):
         from PyQt5.QtWidgets import QDialog, QVBoxLayout, QRadioButton, QPushButton
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("Escolha o tipo de máscara")
+        dialog.setWindowTitle("Choose mask type")
         layout = QVBoxLayout()
 
-        rect_radio = QRadioButton("Retângulo")
+        rect_radio = QRadioButton("Rectangle")
         rect_radio.setChecked(True)
-        tri_radio = QRadioButton("Triângulo")
-        sphere_radio = QRadioButton("Esfera (2D)")
+        tri_radio = QRadioButton("Triangle")
+        sphere_radio = QRadioButton("Sphere (2D)")
 
         layout.addWidget(rect_radio)
         layout.addWidget(tri_radio)
         layout.addWidget(sphere_radio)
 
-        ok_button = QPushButton("Criar")
+        ok_button = QPushButton("Create")
         ok_button.clicked.connect(dialog.accept)
         layout.addWidget(ok_button)
 
@@ -109,9 +109,9 @@ class ProjectionMapper(QMainWindow):
     def add_media_to_mask(self, mask):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Selecionar Mídia",
+            "Select Media",
             "",
-            "Arquivos de Mídia (*.jpg *.jpeg *.png *.bmp *.mp4 *.avi *.mov *.mkv *.webm)"
+            "Media Files (*.jpg *.jpeg *.png *.bmp *.mp4 *.avi *.mov *.mkv *.webm)"
         )
 
         if file_path:
@@ -119,7 +119,7 @@ class ProjectionMapper(QMainWindow):
                 media = Media(file_path)
                 mask.media = media
             except Exception as e:
-                QMessageBox.critical(self, "Erro", f"Não foi possível carregar a mídia: {str(e)}")
+                QMessageBox.critical(self, "Error", f"Could not load media: {str(e)}")
 
     def render_frame(self):
         self.renderer.reset_canvas()
@@ -143,17 +143,17 @@ class ProjectionMapper(QMainWindow):
             self.projection_window.showFullScreen()
 
     def keyPressEvent(self, event):
-        # F11 para fullscreen
+        # F11 for fullscreen
         if event.key() == Qt.Key_F11:
             self.toggle_projection_fullscreen()
         else:
-            # Repassar eventos de teclado para o control_window
+            # Pass keyboard events to control_window
             self.control_window.keyPressEvent(event)
 
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
-        # Repassar eventos de teclado para o control_window
+        # Pass keyboard events to control_window
         self.control_window.keyReleaseEvent(event)
         super().keyReleaseEvent(event)
 

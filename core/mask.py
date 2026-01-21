@@ -16,7 +16,7 @@ class Mask:
         self.media = None
         self.media_transform = MediaTransform()
 
-        # Transformações da máscara
+        # Mask transformations
         self.rotation = 0.0
         self.scale = 1.0
 
@@ -56,39 +56,39 @@ class Mask:
         self.vertices += np.array([dx, dy])
 
     def rotate_mask(self, angle_delta):
-        """Rotaciona a máscara por um delta de ângulo, preservando perspectiva"""
+        """Rotate the mask by an angle delta, preserving perspective"""
         self.rotation += angle_delta
         center = self.get_center()
 
-        # Converter ângulo para radianos
+        # Convert angle to radians
         angle_rad = np.radians(angle_delta)
         cos_a = np.cos(angle_rad)
         sin_a = np.sin(angle_rad)
 
-        # Matriz de rotação
+        # Rotation matrix
         rotation_matrix = np.array([
             [cos_a, -sin_a],
             [sin_a, cos_a]
         ])
 
-        # Aplicar rotação nos vértices atuais (preserva perspectiva)
+        # Apply rotation to current vertices (preserves perspective)
         vertices_centered = self.vertices - center
         vertices_rotated = vertices_centered @ rotation_matrix.T
         self.vertices = (vertices_rotated + center).astype(np.float32)
 
     def scale_mask(self, scale_delta):
-        """Escala a máscara por um delta de escala, preservando perspectiva"""
+        """Scale the mask by a scale delta, preserving perspective"""
         new_scale = max(0.1, 1.0 + scale_delta)
         self.scale *= new_scale
         center = self.get_center()
 
-        # Aplicar escala nos vértices atuais (preserva perspectiva)
+        # Apply scale to current vertices (preserves perspective)
         vertices_centered = self.vertices - center
         vertices_scaled = vertices_centered * new_scale
         self.vertices = (vertices_scaled + center).astype(np.float32)
 
     def reset_transform(self):
-        """Reseta rotação e escala da máscara"""
+        """Reset mask rotation and scale"""
         self.rotation = 0.0
         self.scale = 1.0
         self.vertices = self.original_vertices.copy()

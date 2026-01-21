@@ -5,14 +5,14 @@ import numpy as np
 from enum import Enum
 
 class EditTarget(Enum):
-    MASK = "Máscara"
-    MEDIA = "Mídia"
+    MASK = "Mask"
+    MEDIA = "Media"
 
 class EditType(Enum):
-    ROTATE = (1, "Rotação")
-    MOVE = (2, "Mover")
-    SCALE = (3, "Escala")
-    PERSPECTIVE = (4, "Perspectiva")
+    ROTATE = (1, "Rotate")
+    MOVE = (2, "Move")
+    SCALE = (3, "Scale")
+    PERSPECTIVE = (4, "Perspective")
 
     def __init__(self, num, label):
         self.num = num
@@ -27,7 +27,7 @@ class ControlWindow(QWidget):
         self.canvas_width = width
         self.canvas_height = height
 
-        self.setWindowTitle("BadMapper3 - Control")
+        self.setWindowTitle("BadMapper - Editor")
         self.resize(width, height)
 
         self.dragging_vertex = None
@@ -43,14 +43,14 @@ class ControlWindow(QWidget):
         self.media_initial_offset = None
         self.show_help = True
 
-        # Modo de edição (Máscara ou Mídia)
+        # Edit mode (Mask or Media)
         self.edit_target = EditTarget.MASK
-        # Tipo de edição selecionado (1-4)
+        # Edit type selected (1-4)
         self.edit_type = EditType.MOVE
 
         self.setMouseTracking(True)
 
-        # Permitir foco para receber eventos de teclado
+        # Allow focus to receive keyboard events
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFocus()
 
@@ -72,9 +72,9 @@ class ControlWindow(QWidget):
             painter.setBrush(QBrush(QColor(255, 200, 0, 100)))
             painter.drawRect(10, 10, 200, 30)
             painter.setPen(QPen(QColor(255, 255, 255)))
-            painter.drawText(20, 30, "MODO MÍDIA (Ctrl ativo)")
+            painter.drawText(20, 30, "MEDIA MODE (Ctrl active)")
 
-        # Draw edit mode indicator (canto inferior esquerdo)
+        # Draw edit mode indicator (bottom left corner)
         self._draw_edit_mode_indicator(painter)
 
         # Draw help overlay
@@ -90,27 +90,27 @@ class ControlWindow(QWidget):
             y_offset = help_y + 25
             line_height = 20
 
-            painter.drawText(help_x + 10, y_offset, "ATALHOS:")
+            painter.drawText(help_x + 10, y_offset, "SHORTCUTS:")
             y_offset += line_height + 5
 
             painter.setPen(QPen(QColor(200, 200, 200)))
-            painter.drawText(help_x + 10, y_offset, "• Arrastar vértice: ajustar perspectiva")
+            painter.drawText(help_x + 10, y_offset, "• Drag vertex: adjust perspective")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Arrastar máscara: mover")
+            painter.drawText(help_x + 10, y_offset, "• Drag mask: move")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Ctrl + Arrastar: mover mídia")
+            painter.drawText(help_x + 10, y_offset, "• Ctrl + Drag: move media")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Ctrl + Scroll: escalar mídia")
+            painter.drawText(help_x + 10, y_offset, "• Ctrl + Scroll: scale media")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Shift + Scroll: rotacionar mídia")
+            painter.drawText(help_x + 10, y_offset, "• Shift + Scroll: rotate media")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• F11: fullscreen projeção")
+            painter.drawText(help_x + 10, y_offset, "• F11: fullscreen projection")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• H: ocultar/mostrar ajuda")
+            painter.drawText(help_x + 10, y_offset, "• H: hide/show help")
             y_offset += line_height + 10
 
             painter.setPen(QPen(QColor(150, 150, 150)))
-            painter.drawText(help_x + 10, y_offset, "Pressione H para ocultar")
+            painter.drawText(help_x + 10, y_offset, "Press H to hide")
 
     def _draw_mask_grid(self, painter, mask):
         is_selected = (mask == self.selected_mask)
@@ -152,7 +152,7 @@ class ControlWindow(QWidget):
             painter.setPen(QPen(QColor(100, 255, 100), 2))
             painter.drawRect(int(center[0] - 40), int(center[1] - 20), 80, 40)
             painter.setPen(QPen(QColor(255, 255, 255)))
-            painter.drawText(int(center[0] - 35), int(center[1] + 5), "+ Mídia")
+            painter.drawText(int(center[0] - 35), int(center[1] + 5), "Select Media")
 
     def _draw_internal_grid(self, painter, mask, rows, cols):
         pen = QPen(QColor(70, 70, 70), 1, Qt.DashLine)
@@ -177,7 +177,7 @@ class ControlWindow(QWidget):
                 painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
 
     def mousePressEvent(self, event):
-        # Garantir foco para receber eventos de teclado
+        # Ensure focus to receive keyboard events
         self.setFocus()
 
         if event.button() == Qt.LeftButton:
@@ -240,7 +240,7 @@ class ControlWindow(QWidget):
         if self.dragging_mask and self.drag_start is not None:
             delta = pos - self.drag_start
 
-            # Verificar se está editando mídia ou máscara
+            # Check if editing media or mask
             if self.edit_target == EditTarget.MEDIA and self.dragging_mask.media:
                 self._apply_media_edit(delta, pos)
             else:
@@ -249,33 +249,33 @@ class ControlWindow(QWidget):
             self.drag_start = pos.copy()
 
     def _apply_mask_edit(self, delta, pos):
-        """Aplica edição na máscara baseado no tipo selecionado"""
+        """Apply edit to mask based on selected type"""
         mask = self.dragging_mask
 
         if self.edit_type == EditType.ROTATE:
-            # Rotação baseada no movimento horizontal
+            # Rotation based on horizontal movement
             angle_delta = delta[0] * 0.5
             mask.rotate_mask(angle_delta)
 
         elif self.edit_type == EditType.MOVE:
             if self.dragging_vertex is not None:
-                # Se arrastando vértice, move só o vértice
+                # If dragging vertex, move only the vertex
                 mask.set_vertex(self.dragging_vertex, pos)
             else:
-                # Move a máscara inteira
+                # Move the entire mask
                 mask.translate(delta[0], delta[1])
 
         elif self.edit_type == EditType.SCALE:
-            # Escala baseada no movimento vertical (para cima = maior)
+            # Scale based on vertical movement (up = larger)
             scale_delta = -delta[1] * 0.005
             mask.scale_mask(scale_delta)
 
         elif self.edit_type == EditType.PERSPECTIVE:
-            # Perspectiva - move apenas o vértice mais próximo
+            # Perspective - move only the closest vertex
             if self.dragging_vertex is not None:
                 mask.set_vertex(self.dragging_vertex, pos)
             else:
-                # Encontrar vértice mais próximo do drag start
+                # Find closest vertex to drag start
                 closest_idx = 0
                 min_dist = float('inf')
                 for i, v in enumerate(mask.vertices):
@@ -287,26 +287,26 @@ class ControlWindow(QWidget):
                 mask.set_vertex(closest_idx, new_pos)
 
     def _apply_media_edit(self, delta, pos):
-        """Aplica edição na mídia baseado no tipo selecionado"""
+        """Apply edit to media based on selected type"""
         transform = self.dragging_mask.media_transform
 
         if self.edit_type == EditType.ROTATE:
-            # Rotação baseada no movimento horizontal
+            # Rotation based on horizontal movement
             angle_delta = delta[0] * 0.5
             transform.rotation += angle_delta
 
         elif self.edit_type == EditType.MOVE:
-            # Move a mídia
+            # Move media
             transform.offset_x += delta[0]
             transform.offset_y += delta[1]
 
         elif self.edit_type == EditType.SCALE:
-            # Escala baseada no movimento vertical
+            # Scale based on vertical movement
             scale_delta = -delta[1] * 0.005
             transform.scale = max(0.1, transform.scale + scale_delta)
 
         elif self.edit_type == EditType.PERSPECTIVE:
-            # Para mídia, perspectiva funciona como mover por enquanto
+            # For media, perspective works as move for now
             transform.offset_x += delta[0]
             transform.offset_y += delta[1]
 
@@ -326,7 +326,7 @@ class ControlWindow(QWidget):
             self.show_help = not self.show_help
             self.update()
         elif event.key() == Qt.Key_E:
-            # Alternar alvo de edição (Máscara/Mídia)
+            # Toggle edit target (Mask/Media)
             if self.edit_target == EditTarget.MASK:
                 self.edit_target = EditTarget.MEDIA
             else:
@@ -350,14 +350,14 @@ class ControlWindow(QWidget):
             self.ctrl_pressed = False
 
     def _draw_edit_mode_indicator(self, painter):
-        """Desenha indicador do modo de edição no canto inferior esquerdo"""
-        # Fundo do indicador
+        """Draw edit mode indicator in the bottom left corner"""
+        # Indicator background
         box_width = 350
         box_height = 100
         box_x = 10
         box_y = self.height() - box_height - 10
 
-        # Cor baseada no alvo de edição
+        # Color based on edit target
         if self.edit_target == EditTarget.MASK:
             bg_color = QColor(0, 100, 200, 200)
             border_color = QColor(0, 150, 255)
@@ -369,27 +369,27 @@ class ControlWindow(QWidget):
         painter.setPen(QPen(border_color, 2))
         painter.drawRoundedRect(box_x, box_y, box_width, box_height, 5, 5)
 
-        # Texto do alvo
+        # Target text
         painter.setPen(QPen(QColor(255, 255, 255)))
         font = QFont()
         font.setBold(True)
         font.setPointSize(11)
         painter.setFont(font)
-        painter.drawText(box_x + 10, box_y + 22, f"Alvo: {self.edit_target.value}")
+        painter.drawText(box_x + 10, box_y + 22, f"Target: {self.edit_target.value}")
 
-        # Texto do tipo de edição
+        # Edit type text
         font.setPointSize(12)
         painter.setFont(font)
         painter.setPen(QPen(QColor(255, 255, 100)))
-        painter.drawText(box_x + 10, box_y + 45, f"Edição: {self.edit_type.label}")
+        painter.drawText(box_x + 10, box_y + 45, f"Edit: {self.edit_type.label}")
 
-        # Controles
+        # Controls
         font.setBold(False)
         font.setPointSize(9)
         painter.setFont(font)
         painter.setPen(QPen(QColor(220, 220, 220)))
 
-        # Mostrar teclas com destaque na selecionada
+        # Show keys with highlight on selected
         edit_types_text = ""
         for et in EditType:
             if et == self.edit_type:
@@ -398,9 +398,9 @@ class ControlWindow(QWidget):
                 edit_types_text += f"{et.num}:{et.label} "
 
         painter.drawText(box_x + 10, box_y + 65, edit_types_text)
-        painter.drawText(box_x + 10, box_y + 85, "E: Alternar Máscara/Mídia")
+        painter.drawText(box_x + 10, box_y + 85, "E: Toggle Mask/Media")
 
-        # Info da máscara selecionada
+        # Selected mask info
         if self.selected_mask:
             info_x = box_x + box_width + 10
             painter.setPen(QPen(QColor(150, 150, 150)))
