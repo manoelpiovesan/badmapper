@@ -1,0 +1,101 @@
+Você é um engenheiro de software experiente em aplicações gráficas, visão computacional e interfaces interativas, com forte conhecimento em projection mapping e manipulação de transformações geométricas.
+
+Sua tarefa é projetar e implementar do zero um software simples de projeção mapeada (projection mapping), com foco em desempenho, precisão visual e compatibilidade multiplataforma.
+
+OBJETIVO GERAL
+Criar um aplicativo desktop que permita definir máscaras de projeção geométricas, aplicar imagens ou vídeos dentro dessas máscaras e controlar transformações em tempo real através de manipulação direta (drag & transform), em uma janela de controle separada da janela de projeção.
+
+REQUISITOS TÉCNICOS
+- Linguagem: Python
+- Interface gráfica: PyQt5 (ou PySide se houver justificativa técnica)
+- Manipulação e renderização de imagens/vídeos: OpenCV
+- Compatibilidade: Windows, Linux e macOS
+- Arquitetura modular e extensível
+- Alta performance mesmo em grandes resoluções
+
+ARQUITETURA DO SOFTWARE
+O software deve possuir duas janelas independentes:
+
+1) JANELA DE CONTROLE (EDIÇÃO)
+- Mostra apenas os grids/contornos das máscaras
+- NÃO exibe a mídia final
+- O grid deve representar exatamente o formato, rotação, escala e perspectiva da projeção final
+- A edição deve ser feita exclusivamente por interação direta (drag no grid)
+
+2) JANELA DE PROJEÇÃO
+- Mostra apenas o resultado final renderizado
+- Exibe a mídia aplicada às máscaras
+- Atualiza em tempo real
+- Sem qualquer elemento de interface
+
+FUNCIONALIDADES OBRIGATÓRIAS
+
+MÁSCARAS DE PROJEÇÃO
+- O usuário pode criar uma máscara ao iniciar o software
+- Tipos de máscara:
+  - Retangular
+  - Triangular
+  - Esférica (aproximação 2D via warp/perspectiva)
+- Cada máscara deve possuir um grid visível e editável na janela de controle
+
+DESTAQUE FUNDAMENTAL — AJUSTE DE PERSPECTIVA (WARP)
+- O ajuste de perspectiva é uma funcionalidade central do software
+- Deve funcionar de forma semelhante ao Photoshop:
+  - Polígono com handles nos vértices e bordas
+  - Arrastar vértices ajusta a perspectiva (homografia)
+  - Arrastar bordas ajusta escala e deformação
+  - Arrastar o centro move a máscara
+- O grid deve se deformar visualmente conforme o warp
+- O grid exibido na janela de controle deve refletir exatamente a projeção final, SEM a mídia aplicada
+- Não utilizar inputs numéricos para transformações
+
+TRANSFORMAÇÕES DA MÁSCARA (APENAS VIA DRAG)
+- Mover: arrastar o grid
+- Escalar: arrastar bordas ou cantos
+- Rotacionar: interação direta (ex: handle de rotação ou modificador de mouse)
+- Perspectiva: arrastar vértices
+- Todas as transformações devem refletir em tempo real na janela de projeção
+
+MÍDIA (IMAGEM OU VÍDEO)
+- O usuário pode carregar imagens ou vídeos
+- Um botão simples de “Adicionar mídia” no centro do grid da máscara é suficiente
+- A mídia deve ser recortada pela máscara
+- A mídia acompanha todas as transformações da máscara
+
+TRANSFORMAÇÕES DA MÍDIA DENTRO DA MÁSCARA
+- A mídia deve ser manipulável por drag
+- Deve ser possível:
+  - Mover
+  - Escalar
+  - Rotacionar
+  - Ajustar perspectiva
+- Sem inputs numéricos
+
+COMPORTAMENTO VISUAL
+- Janela de controle:
+  - Exibe apenas grids e handles de edição
+  - Nenhuma mídia renderizada final
+
+- Janela de projeção:
+  - Exibe apenas a mídia aplicada às máscaras
+  - Ideal para fullscreen em projetores
+
+REQUISITOS DE DESEMPENHO
+- Não degradar qualidade visual ao escalar imagens ou vídeos
+- Manter FPS estável para vídeo
+- Utilizar homografia (cv2.getPerspectiveTransform / warpPerspective)
+- Evitar cópias desnecessárias de frames
+- Código preparado para futura integração com GPU / OpenGL
+
+ENTREGÁVEIS
+- Estrutura do projeto clara e objetiva
+- Código-fonte funcional, limpo e bem organizado
+- README.md único, curto e direto (sem documentação excessiva)
+- Instruções básicas de execução para Windows, Linux e macOS
+
+RESTRIÇÕES ADICIONAIS
+- NÃO criar múltiplos arquivos .md desnecessários
+- NÃO escrever comentários longos ou prolixos
+- Priorizar código autoexplicativo e bem estruturado
+- Não utilizar engines externas (Unity, Unreal)
+- Não depender de serviços online
