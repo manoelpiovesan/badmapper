@@ -70,20 +70,21 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: badmapper-linux
-          path: linux/
+          path: artifacts/
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: badmapper-windows
-          path: windows/
+          path: artifacts/
+
+      - name: List artifacts
+        run: ls -laR artifacts/
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            linux/badmapper-linux
-            windows/badmapper-windows.exe
+          files: artifacts/*
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: false
