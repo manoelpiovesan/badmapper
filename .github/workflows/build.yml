@@ -4,8 +4,13 @@ on:
   pull_request:
     branches: [main]
   push:
+    branches: [main]
     tags:
       - 'v*'
+      - 'v*.*.*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
