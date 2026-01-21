@@ -9,7 +9,7 @@ class ProjectionWindow(QWidget):
         super().__init__()
         self.renderer = renderer
 
-        self.setWindowTitle("BadMapper3 - Projection Output")
+        self.setWindowTitle("BadMapper - Projection Output")
         self.resize(width, height)
 
         # Update timer for video playback
