@@ -1,6 +1,0 @@
-Collecting opencv-python-headless
-  Using cached opencv_python_headless-4.13.0.90-cp37-abi3-manylinux_2_28_x86_64.whl.metadata (19 kB)
-Requirement already satisfied: numpy>=2 in ./venv/lib/python3.12/site-packages (from opencv-python-headless) (2.4.1)
-Using cached opencv_python_headless-4.13.0.90-cp37-abi3-manylinux_2_28_x86_64.whl (62.5 MB)
-Installing collected packages: opencv-python-headless
-Successfully installed opencv-python-headless-4.13.0.90
