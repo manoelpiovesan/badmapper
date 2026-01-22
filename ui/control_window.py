@@ -170,8 +170,30 @@ class ControlWindow(QWidget):
         if len(vertices) < 3:
             return
 
+        # For triangles: interpolate grid from top to base
+        if len(vertices) == 3:
+            # Assume triangle vertices: [top, bottom-right, bottom-left]
+            top = vertices[0]
+            bottom_right = vertices[1]
+            bottom_left = vertices[2]
+
+            # Draw horizontal lines from left edge to right edge
+            for i in range(1, rows):
+                t = i / rows
+                # Interpolate along left and right edges
+                p_left = top * (1 - t) + bottom_left * t
+                p_right = top * (1 - t) + bottom_right * t
+                painter.drawLine(int(p_left[0]), int(p_left[1]), int(p_right[0]), int(p_right[1]))
+
+            # Draw vertical-ish lines from top to base
+            for j in range(1, cols):
+                t = j / cols
+                # Point on the base
+                p_base = bottom_left * (1 - t) + bottom_right * t
+                painter.drawLine(int(top[0]), int(top[1]), int(p_base[0]), int(p_base[1]))
+
         # For quad/rectangle: interpolate grid
-        if len(vertices) >= 4:
+        elif len(vertices) >= 4:
             for i in range(1, rows):
                 t = i / rows
                 p1 = vertices[0] * (1 - t) + vertices[3] * t

@@ -4,6 +4,8 @@
 
 A simple projection mapping software, similar to MadMapper, but a free and open-source alternative — and unapologetically worse.
 
+![BadMapper Use Case](docs/projection_mapping_example.png)
+Exemple of use case. Source: [Pinterest](https://i.pinimg.com/736x/84/96/ee/8496eead7424f1642b5c1eeba7f73ad3.jpg)
 
 ### Downloads
 
@@ -14,8 +16,9 @@ Download the latest release for your platform from the [Releases](https://github
 
 ### Getting Started
 
-Running venv
+Running as development mode
 
+Create a virtual environment and install dependencies
 ```bash
 python3 -m venv venv
 source venv/bin/activate
@@ -23,24 +26,12 @@ pip install -r requirements.txt
 ```
 
 Running the app
-
 ```bash
 python main.py
 ```
 
-
 ### Controls
-
-| Key | Action |
-|-----|--------|
-| **1** | Rotate mode |
-| **2** | Move mode |
-| **3** | Scale mode |
-| **4** | Perspective mode |
-| **E** | Toggle Mask/Media editing |
-| **H** | Show/Hide help |
-| **F11** | Toggle fullscreen projection |
-
+Press H to show/hide helper panel.
 
 ### Screenshots
 

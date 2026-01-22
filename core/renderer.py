@@ -66,27 +66,55 @@ class Renderer:
         media_points[:, 1] -= transform.offset_y * offset_scale
 
         # Perspective transform from media to mask vertices
-        if len(mask.vertices) >= 4:
-            dest_points = mask.vertices[:4].astype(np.float32)
-        else:
-            # For triangles, add a fourth point
-            dest_points = np.vstack([mask.vertices, mask.vertices[0]]).astype(np.float32)
-
-        # Get homography
         try:
-            H = cv2.getPerspectiveTransform(media_points, dest_points)
-            warped = cv2.warpPerspective(transformed_media, H, (self.width, self.height),
-                                        flags=cv2.INTER_LINEAR,
-                                        borderMode=cv2.BORDER_CONSTANT,
-                                        borderValue=(0, 0, 0))
+            if len(mask.vertices) == 3:
+                # For triangles, use affine transform with 3 points
+                # Map media triangle to mask triangle
+                media_triangle = np.array([
+                    [0, 0],
+                    [media_w, 0],
+                    [media_w / 2, media_h]
+                ], dtype=np.float32)
 
-            # Create mask for blending
-            mask_img = np.zeros((self.height, self.width), dtype=np.uint8)
-            cv2.fillPoly(mask_img, [dest_points.astype(np.int32)], 255)
+                # Apply offset to source triangle
+                media_triangle[:, 0] -= transform.offset_x * offset_scale
+                media_triangle[:, 1] -= transform.offset_y * offset_scale
 
-            # Blend with output canvas
-            mask_3ch = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2BGR)
-            self.output_canvas = np.where(mask_3ch > 0, warped, self.output_canvas)
+                dest_points = mask.vertices.astype(np.float32)
+
+                # Get affine transform for triangles
+                M = cv2.getAffineTransform(media_triangle, dest_points)
+                warped = cv2.warpAffine(transformed_media, M, (self.width, self.height),
+                                       flags=cv2.INTER_LINEAR,
+                                       borderMode=cv2.BORDER_CONSTANT,
+                                       borderValue=(0, 0, 0))
+
+                # Create mask for blending
+                mask_img = np.zeros((self.height, self.width), dtype=np.uint8)
+                cv2.fillPoly(mask_img, [dest_points.astype(np.int32)], 255)
+
+                # Blend with output canvas
+                mask_3ch = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2BGR)
+                self.output_canvas = np.where(mask_3ch > 0, warped, self.output_canvas)
+
+            elif len(mask.vertices) >= 4:
+                # For rectangles/quads, use perspective transform with 4 points
+                dest_points = mask.vertices[:4].astype(np.float32)
+
+                # Get homography
+                H = cv2.getPerspectiveTransform(media_points, dest_points)
+                warped = cv2.warpPerspective(transformed_media, H, (self.width, self.height),
+                                            flags=cv2.INTER_LINEAR,
+                                            borderMode=cv2.BORDER_CONSTANT,
+                                            borderValue=(0, 0, 0))
+
+                # Create mask for blending
+                mask_img = np.zeros((self.height, self.width), dtype=np.uint8)
+                cv2.fillPoly(mask_img, [dest_points.astype(np.int32)], 255)
+
+                # Blend with output canvas
+                mask_3ch = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2BGR)
+                self.output_canvas = np.where(mask_3ch > 0, warped, self.output_canvas)
         except:
             pass
 
