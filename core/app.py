@@ -1,10 +1,23 @@
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QMenuBar, QMenu, QAction
 from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtGui import QIcon
 from core.mask import Mask, MaskType
 from core.media import Media
 from core.renderer import Renderer
 from ui.control_window import ControlWindow
 from ui.projection_window import ProjectionWindow
+import os
+import sys
+
+def get_resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.dirname(os.path.dirname(__file__))
+
+    return os.path.join(base_path, relative_path)
 
 class ProjectionMapper(QMainWindow):
     def __init__(self):
@@ -25,6 +38,11 @@ class ProjectionMapper(QMainWindow):
 
     def init_ui(self):
         self.setWindowTitle("BadMapper - Editor")
+
+        # Set window icon
+        icon_path = get_resource_path('assets/favicon.png')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # Create menu bar
         menubar = self.menuBar()

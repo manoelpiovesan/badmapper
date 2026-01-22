@@ -52,12 +52,12 @@ jobs:
       - name: Build executable (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          pyinstaller --onefile --windowed --name badmapper-linux main.py
+          pyinstaller --onefile --windowed --name badmapper-linux --icon=assets/favicon.png --add-data "assets:assets" main.py
 
       - name: Build executable (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          pyinstaller --onefile --windowed --name badmapper-windows main.py
+          pyinstaller --onefile --windowed --name badmapper-windows --icon=assets/favicon.ico --add-data "assets;assets" main.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
