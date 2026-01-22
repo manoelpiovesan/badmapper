@@ -20,6 +20,8 @@ class EditType(Enum):
 
 class ControlWindow(QWidget):
     media_requested = pyqtSignal(object)
+    mask_delete_requested = pyqtSignal(object)
+    media_replace_requested = pyqtSignal(object)
 
     def __init__(self, masks, width=1024, height=768):
         super().__init__()
@@ -81,7 +83,7 @@ class ControlWindow(QWidget):
         if self.show_help:
             painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
             painter.setPen(QPen(QColor(100, 100, 100)))
-            help_w, help_h = 400, 300
+            help_w, help_h = 400, 340
             help_x = self.width() - help_w - 20
             help_y = 20
             painter.drawRect(help_x, help_y, help_w, help_h)
@@ -104,7 +106,13 @@ class ControlWindow(QWidget):
             y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• Shift + Scroll: rotate media")
             y_offset += line_height
+            painter.drawText(help_x + 10, y_offset, "• Delete: remove selected mask")
+            y_offset += line_height
+            painter.drawText(help_x + 10, y_offset, "• R: replace media")
+            y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• F11: fullscreen projection")
+            y_offset += line_height
+            painter.drawText(help_x + 10, y_offset, "• G: toggle grid (projection)")
             y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• H: hide/show help")
             y_offset += line_height + 10
@@ -344,6 +352,12 @@ class ControlWindow(QWidget):
         elif event.key() == Qt.Key_4:
             self.edit_type = EditType.PERSPECTIVE
             self.update()
+        elif event.key() == Qt.Key_Delete:
+            if self.selected_mask:
+                self.mask_delete_requested.emit(self.selected_mask)
+        elif event.key() == Qt.Key_R:
+            if self.selected_mask:
+                self.media_replace_requested.emit(self.selected_mask)
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:

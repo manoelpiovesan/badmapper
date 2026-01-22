@@ -43,3 +43,5 @@ class ProjectionWindow(QWidget):
         elif event.key() == Qt.Key_Escape:
             if self.isFullScreen():
                 self.showNormal()
+        elif event.key() == Qt.Key_G:
+            self.renderer.toggle_grid()

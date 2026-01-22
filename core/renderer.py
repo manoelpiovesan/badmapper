@@ -6,6 +6,7 @@ class Renderer:
         self.width = width
         self.height = height
         self.output_canvas = None
+        self.show_grid = False
         self.reset_canvas()
 
     def reset_canvas(self):
@@ -91,3 +92,22 @@ class Renderer:
 
     def get_output(self):
         return self.output_canvas
+
+    def draw_grid(self, mask):
+        """Draw grid around mask boundaries"""
+        if not self.show_grid:
+            return
+
+        vertices = mask.vertices.astype(np.int32)
+
+        # Draw polygon outline
+        cv2.polylines(self.output_canvas, [vertices], True, (0, 255, 0), 2)
+
+        # Draw vertices as circles
+        for vertex in vertices:
+            cv2.circle(self.output_canvas, tuple(vertex), 5, (0, 255, 0), -1)
+
+    def toggle_grid(self):
+        """Toggle grid visibility"""
+        self.show_grid = not self.show_grid
+
