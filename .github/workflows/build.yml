@@ -41,21 +41,34 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Debug - List files (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pwd
+          ls -la
+          ls -la assets/
+
+      - name: Build executable (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pyinstaller --onefile --windowed --name badmapper-linux --icon=./assets/favicon.png --add-data "./assets:assets" main.py
+
       - name: Install dependencies (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build executable (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Debug - List files (Windows)
+        if: matrix.os == 'windows-latest'
         run: |
-          pyinstaller --onefile --windowed --name badmapper-linux --icon=assets/favicon.png --add-data "assets:assets" main.py
+          dir
+          dir assets
 
       - name: Build executable (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          pyinstaller --onefile --windowed --name badmapper-windows --icon=assets/favicon.ico --add-data "assets;assets" main.py
+          pyinstaller --onefile --windowed --name badmapper-windows --icon=./assets/favicon.ico --add-data "./assets;assets" main.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
