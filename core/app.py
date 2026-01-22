@@ -56,6 +56,8 @@ class ProjectionMapper(QMainWindow):
         # Control window
         self.control_window = ControlWindow(self.masks)
         self.control_window.media_requested.connect(self.add_media_to_mask)
+        self.control_window.mask_delete_requested.connect(self.delete_mask)
+        self.control_window.media_replace_requested.connect(self.replace_media)
         self.setCentralWidget(self.control_window)
 
         # Projection window
@@ -121,12 +123,58 @@ class ProjectionMapper(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not load media: {str(e)}")
 
+    def delete_mask(self, mask):
+        """Delete the selected mask"""
+        if mask in self.masks:
+            # Release media resources if any
+            if mask.media:
+                mask.media.release()
+
+            # Remove from masks list
+            self.masks.remove(mask)
+
+            # Clear selection if deleted mask was selected
+            if self.control_window.selected_mask == mask:
+                self.control_window.selected_mask = None
+                # Select first mask if any remain
+                if self.masks:
+                    self.control_window.selected_mask = self.masks[0]
+
+    def replace_media(self, mask):
+        """Replace media in the selected mask"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Replace Media",
+            "",
+            "Media Files (*.jpg *.jpeg *.png *.bmp *.mp4 *.avi *.mov *.mkv *.webm)"
+        )
+
+        if file_path:
+            try:
+                # Release old media if any
+                if mask.media:
+                    mask.media.release()
+
+                # Load new media
+                media = Media(file_path)
+                mask.media = media
+
+                # Reset media transform
+                mask.media_transform.reset()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Could not load media: {str(e)}")
+
     def render_frame(self):
         self.renderer.reset_canvas()
 
         for mask in self.masks:
             if mask.media:
                 self.renderer.render_mask(mask)
+
+        # Draw grids if enabled
+        if self.renderer.show_grid:
+            for mask in self.masks:
+                self.renderer.draw_grid(mask)
 
         self.projection_window.update()
 
