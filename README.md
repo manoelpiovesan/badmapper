@@ -1,13 +1,12 @@
 ## BadMapper
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L3L61SRB88)
-
 [![Build Executables](https://github.com/manoelpiovesan/badmapper/actions/workflows/build.yml/badge.svg)](https://github.com/manoelpiovesan/badmapper/actions/workflows/build.yml) 
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L3L61SRB88)
 
 A simple projection mapping software, similar to MadMapper, but a free and open-source alternative — and unapologetically worse.
 
 ![BadMapper Use Case](docs/projection_mapping_example.png)
+
 Exemple of use case. Source: [Pinterest](https://i.pinimg.com/736x/84/96/ee/8496eead7424f1642b5c1eeba7f73ad3.jpg)
 
 ### Downloads
