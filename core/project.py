@@ -113,10 +113,19 @@ class ProjectSerializer:
 
         # Save media information
         if mask.media:
-            mask_data["media"] = {
+            media_dict = {
                 "path": mask.media.path,
-                "is_video": mask.media.is_video
+                "is_video": mask.media.is_video,
+                "is_webcam": mask.media.is_webcam
             }
+            # Extract webcam index if it's a webcam
+            if mask.media.is_webcam and mask.media.path.startswith("webcam:"):
+                try:
+                    webcam_index = int(mask.media.path.split(":")[1])
+                    media_dict["webcam_index"] = webcam_index
+                except:
+                    media_dict["webcam_index"] = 0
+            mask_data["media"] = media_dict
 
         return mask_data
 
@@ -160,16 +169,28 @@ class ProjectSerializer:
             # Restore media
             media_data = mask_data.get("media")
             if media_data:
-                media_path = media_data.get("path")
-                if media_path and os.path.exists(media_path):
+                is_webcam = media_data.get("is_webcam", False)
+
+                if is_webcam:
+                    # Restore webcam
+                    webcam_index = media_data.get("webcam_index", 0)
                     try:
-                        mask.media = Media(media_path)
+                        mask.media = Media(path="", is_webcam=True, webcam_index=webcam_index)
                     except Exception as e:
-                        print(f"Warning: Could not load media from {media_path}: {e}")
+                        print(f"Warning: Could not open webcam {webcam_index}: {e}")
                         mask.media = None
                 else:
-                    print(f"Warning: Media file not found: {media_path}")
-                    mask.media = None
+                    # Restore file-based media
+                    media_path = media_data.get("path")
+                    if media_path and os.path.exists(media_path):
+                        try:
+                            mask.media = Media(media_path)
+                        except Exception as e:
+                            print(f"Warning: Could not load media from {media_path}: {e}")
+                            mask.media = None
+                    else:
+                        print(f"Warning: Media file not found: {media_path}")
+                        mask.media = None
 
             return mask
         except Exception as e:

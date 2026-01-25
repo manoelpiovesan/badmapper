@@ -80,6 +80,10 @@ class ProjectionMapper(QMainWindow):
         add_mask_action.triggered.connect(self.add_mask_dialog)
         file_menu.addAction(add_mask_action)
 
+        add_webcam_action = QAction('Add Webcam to Mask', self)
+        add_webcam_action.triggered.connect(self.add_webcam_to_selected_mask)
+        file_menu.addAction(add_webcam_action)
+
         file_menu.addSeparator()
 
         exit_action = QAction('Exit', self)
@@ -166,6 +170,58 @@ class ProjectionMapper(QMainWindow):
                 mask.media = media
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not load media: {str(e)}")
+
+    def add_webcam_to_selected_mask(self):
+        """Add webcam to the currently selected mask"""
+        if not self.control_window.selected_mask:
+            QMessageBox.warning(self, "No Mask Selected", "Please select a mask first.")
+            return
+
+        self.add_webcam_to_mask(self.control_window.selected_mask)
+
+    def add_webcam_to_mask(self, mask):
+        """Add webcam as media source to a mask"""
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QSpinBox, QPushButton, QHBoxLayout
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Webcam")
+        layout = QVBoxLayout()
+
+        # Webcam index selection
+        label = QLabel("Select webcam index (usually 0 for default camera):")
+        layout.addWidget(label)
+
+        spinbox = QSpinBox()
+        spinbox.setMinimum(0)
+        spinbox.setMaximum(10)
+        spinbox.setValue(0)
+        layout.addWidget(spinbox)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        ok_button = QPushButton("OK")
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(dialog.reject)
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
+        dialog.setLayout(layout)
+
+        if dialog.exec_():
+            webcam_index = spinbox.value()
+            try:
+                # Release old media if any
+                if mask.media:
+                    mask.media.release()
+
+                # Create webcam media
+                media = Media(path="", is_webcam=True, webcam_index=webcam_index)
+                mask.media = media
+                QMessageBox.information(self, "Success", f"Webcam {webcam_index} added successfully!")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Could not open webcam: {str(e)}")
 
     def delete_mask(self, mask):
         """Delete the selected mask"""

@@ -35,6 +35,31 @@ python main.py
 ### Controls
 Press H to show/hide helper panel.
 
+## Features
+
+### Project Files (.bad)
+BadMapper allows you to save and load projects in `.bad` format (JSON-based). Projects include:
+- Mask positions, types, and transformations
+- Media file paths (images and videos)
+- Webcam configurations
+- Media transformations (position, scale, rotation, perspective)
+- Projection settings (width and height)
+
+**Keyboard Shortcuts:**
+- `Ctrl+N` - New Project
+- `Ctrl+O` - Open Project
+- `Ctrl+S` - Save Project
+- `Ctrl+Shift+S` - Save Project As
+
+### Webcam Support
+BadMapper supports using webcams as live media sources for your masks:
+1. Select a mask
+2. Go to `File > Add Webcam to Mask`
+3. Choose the webcam index (usually 0 for the default camera)
+4. The webcam feed will be displayed in real-time on your projection
+
+**Note:** Webcam configurations are saved in project files and will automatically reconnect when you load the project.
+
 ## Screenshots
 
 ![BadMapper Screenshot](docs/app_editor_screenshot.png)
