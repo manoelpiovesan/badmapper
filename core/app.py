@@ -4,6 +4,7 @@ from PyQt5.QtGui import QIcon
 from core.mask import Mask, MaskType
 from core.media import Media
 from core.renderer import Renderer
+from core.project import ProjectSerializer
 from ui.control_window import ControlWindow
 from ui.projection_window import ProjectionWindow
 import os
@@ -28,6 +29,7 @@ class ProjectionMapper(QMainWindow):
 
         self.masks = []
         self.renderer = Renderer(self.projection_width, self.projection_height)
+        self.current_file = None  # Track current project file
 
         self.init_ui()
         self.create_initial_mask()
@@ -49,6 +51,30 @@ class ProjectionMapper(QMainWindow):
 
         # File menu
         file_menu = menubar.addMenu('File')
+
+        new_action = QAction('New Project', self)
+        new_action.setShortcut('Ctrl+N')
+        new_action.triggered.connect(self.new_project)
+        file_menu.addAction(new_action)
+
+        open_action = QAction('Open Project...', self)
+        open_action.setShortcut('Ctrl+O')
+        open_action.triggered.connect(self.open_project)
+        file_menu.addAction(open_action)
+
+        file_menu.addSeparator()
+
+        save_action = QAction('Save Project', self)
+        save_action.setShortcut('Ctrl+S')
+        save_action.triggered.connect(self.save_project)
+        file_menu.addAction(save_action)
+
+        save_as_action = QAction('Save Project As...', self)
+        save_as_action.setShortcut('Ctrl+Shift+S')
+        save_as_action.triggered.connect(self.save_project_as)
+        file_menu.addAction(save_as_action)
+
+        file_menu.addSeparator()
 
         add_mask_action = QAction('New Mask', self)
         add_mask_action.triggered.connect(self.add_mask_dialog)
@@ -222,6 +248,125 @@ class ProjectionMapper(QMainWindow):
         # Pass keyboard events to control_window
         self.control_window.keyReleaseEvent(event)
         super().keyReleaseEvent(event)
+
+    def new_project(self):
+        """Create a new project"""
+        reply = QMessageBox.question(
+            self,
+            'New Project',
+            'Are you sure you want to create a new project? Any unsaved changes will be lost.',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            # Clean up existing masks
+            for mask in self.masks:
+                if mask.media:
+                    mask.media.release()
+
+            # Reset project
+            self.masks.clear()
+            self.current_file = None
+            self.create_initial_mask()
+
+            # Select first mask
+            if self.masks:
+                self.control_window.selected_mask = self.masks[0]
+
+            self.setWindowTitle("BadMapper - Editor")
+
+    def save_project(self):
+        """Save the current project"""
+        if self.current_file:
+            success = ProjectSerializer.save_project(
+                self.current_file,
+                self.masks,
+                self.projection_width,
+                self.projection_height
+            )
+            if success:
+                QMessageBox.information(self, "Success", f"Project saved to {self.current_file}")
+                self.update_window_title()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to save project")
+        else:
+            self.save_project_as()
+
+    def save_project_as(self):
+        """Save the current project with a new filename"""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Project As",
+            "",
+            "BadMapper Project (*.bad)"
+        )
+
+        if file_path:
+            success = ProjectSerializer.save_project(
+                file_path,
+                self.masks,
+                self.projection_width,
+                self.projection_height
+            )
+            if success:
+                self.current_file = file_path
+                QMessageBox.information(self, "Success", f"Project saved to {file_path}")
+                self.update_window_title()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to save project")
+
+    def open_project(self):
+        """Open an existing project"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Project",
+            "",
+            "BadMapper Project (*.bad)"
+        )
+
+        if file_path:
+            project_data = ProjectSerializer.load_project(file_path)
+
+            if project_data:
+                # Clean up existing masks
+                for mask in self.masks:
+                    if mask.media:
+                        mask.media.release()
+
+                # Load new project
+                self.masks.clear()
+                self.masks.extend(project_data["masks"])
+                self.projection_width = project_data["projection_width"]
+                self.projection_height = project_data["projection_height"]
+                self.current_file = file_path
+
+                # Update renderer with new projection size
+                self.renderer.width = self.projection_width
+                self.renderer.height = self.projection_height
+                self.renderer.canvas = None  # Will be recreated on next render
+
+                # Update projection window
+                self.projection_window.setFixedSize(self.projection_width, self.projection_height)
+
+                # Select first mask if available
+                if self.masks:
+                    self.control_window.selected_mask = self.masks[0]
+                else:
+                    self.control_window.selected_mask = None
+
+                self.update_window_title()
+                QMessageBox.information(self, "Success", f"Project loaded from {file_path}")
+            else:
+                QMessageBox.critical(self, "Error", "Failed to load project")
+
+    def update_window_title(self):
+        """Update the window title with the current file name"""
+        if self.current_file:
+            file_name = os.path.basename(self.current_file)
+            self.setWindowTitle(f"BadMapper - Editor - {file_name}")
+        else:
+            self.setWindowTitle("BadMapper - Editor")
 
     def closeEvent(self, event):
         # Clean up media resources
