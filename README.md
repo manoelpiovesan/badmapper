@@ -1,5 +1,8 @@
 ## BadMapper
 [![Build Executables](https://github.com/manoelpiovesan/badmapper/actions/workflows/build.yml/badge.svg)](https://github.com/manoelpiovesan/badmapper/actions/workflows/build.yml) 
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/manoelpiovesan/badmapper)](https://github.com/manoelpiovesan/badmapper/releases/latest)
+[![GitHub downloads](https://img.shields.io/github/downloads/manoelpiovesan/badmapper/total)](https://github.com/manoelpiovesan/badmapper/releases)
+[![GitHub downloads (latest release)](https://img.shields.io/github/downloads/manoelpiovesan/badmapper/latest/total)](https://github.com/manoelpiovesan/badmapper/releases/latest)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L3L61SRB88)
 
