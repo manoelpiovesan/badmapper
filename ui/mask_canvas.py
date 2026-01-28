@@ -31,6 +31,14 @@ class MaskCanvas(QWidget):
             painter.setPen(QPen(QColor(255, 255, 255)))
             painter.drawText(20, 30, "MEDIA MODE (Ctrl active)")
 
+        # Draw zoom indicator (top left corner)
+        if self.control_window.view_zoom != 1.0 or self.control_window.view_offset_x != 0 or self.control_window.view_offset_y != 0:
+            painter.setPen(QPen(QColor(100, 200, 255), 2))
+            painter.setBrush(QBrush(QColor(100, 200, 255, 100)))
+            painter.drawRect(10, 50, 150, 30)
+            painter.setPen(QPen(QColor(255, 255, 255)))
+            painter.drawText(20, 70, f"Zoom: {self.control_window.view_zoom:.2f}x")
+
         # Draw edit mode indicator (bottom left corner)
         self.control_window._draw_edit_mode_indicator(painter)
 
@@ -38,7 +46,7 @@ class MaskCanvas(QWidget):
         if self.control_window.show_help:
             painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
             painter.setPen(QPen(QColor(100, 100, 100)))
-            help_w, help_h = 400, 380
+            help_w, help_h = 400, 460
             help_x = self.width() - help_w - 20
             help_y = 20
             painter.drawRect(help_x, help_y, help_w, help_h)
@@ -70,7 +78,18 @@ class MaskCanvas(QWidget):
             painter.drawText(help_x + 10, y_offset, "• G: toggle grid (projection)")
             y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• H: hide/show help")
-            y_offset += line_height + 10
+            y_offset += line_height + 5
+
+            painter.setPen(QPen(QColor(100, 255, 100)))
+            painter.drawText(help_x + 10, y_offset, "View Navigation:")
+            y_offset += line_height
+            painter.setPen(QPen(QColor(200, 200, 200)))
+            painter.drawText(help_x + 10, y_offset, "• . (period): zoom in")
+            y_offset += line_height
+            painter.drawText(help_x + 10, y_offset, "• , (comma): zoom out")
+            y_offset += line_height
+            painter.drawText(help_x + 10, y_offset, "• Arrow keys: pan view")
+            y_offset += line_height + 5
 
             painter.setPen(QPen(QColor(150, 150, 150)))
             painter.drawText(help_x + 10, y_offset, "Sidebar:")

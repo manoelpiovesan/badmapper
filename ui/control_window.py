@@ -52,6 +52,12 @@ class ControlWindow(QWidget):
         # Edit type selected (1-4)
         self.edit_type = EditType.MOVE
 
+        # View navigation (zoom and pan) - does not affect projection
+        self.view_zoom = 1.0
+        self.view_offset_x = 0.0
+        self.view_offset_y = 0.0
+        self.pan_speed = 20  # pixels per key press
+
         # Create layout with sidebar
         main_layout = QHBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -84,6 +90,20 @@ class ControlWindow(QWidget):
         if self.selected_mask:
             self.mask_list_widget.set_selected_mask(self.selected_mask)
 
+    def _transform_point_to_view(self, point):
+        """Transform a point from world space to view space (with zoom and pan)"""
+        x, y = point
+        view_x = (x + self.view_offset_x) * self.view_zoom
+        view_y = (y + self.view_offset_y) * self.view_zoom
+        return np.array([view_x, view_y])
+
+    def _transform_point_from_view(self, point):
+        """Transform a point from view space back to world space"""
+        x, y = point
+        world_x = x / self.view_zoom - self.view_offset_x
+        world_y = y / self.view_zoom - self.view_offset_y
+        return np.array([world_x, world_y])
+
     def _draw_mask_grid(self, painter, mask):
         is_selected = (mask == self.selected_mask)
 
@@ -94,19 +114,20 @@ class ControlWindow(QWidget):
             pen = QPen(QColor(100, 100, 100), 1)
         painter.setPen(pen)
 
-        vertices = mask.vertices.astype(int)
+        # Apply view transformation to vertices
+        vertices_transformed = np.array([self._transform_point_to_view(v) for v in mask.vertices]).astype(int)
 
         # Draw polygon
-        for i in range(len(vertices)):
-            p1 = vertices[i]
-            p2 = vertices[(i + 1) % len(vertices)]
+        for i in range(len(vertices_transformed)):
+            p1 = vertices_transformed[i]
+            p2 = vertices_transformed[(i + 1) % len(vertices_transformed)]
             painter.drawLine(p1[0], p1[1], p2[0], p2[1])
 
         # Draw grid inside mask
         self._draw_internal_grid(painter, mask, 10, 10)
 
         # Draw vertices
-        for i, vertex in enumerate(vertices):
+        for i, vertex in enumerate(vertices_transformed):
             is_hover = (self.hover_vertex == i and self.hover_mask == mask)
             if is_hover:
                 painter.setBrush(QBrush(QColor(255, 200, 0)))
@@ -120,11 +141,17 @@ class ControlWindow(QWidget):
         # Draw add media button if no media
         if mask.media is None:
             center = mask.get_center()
+            center_transformed = self._transform_point_to_view(center)
+            button_size = 80 * self.view_zoom
+            button_height = 40 * self.view_zoom
             painter.setBrush(QBrush(QColor(50, 150, 50, 180)))
             painter.setPen(QPen(QColor(100, 255, 100), 2))
-            painter.drawRect(int(center[0] - 40), int(center[1] - 20), 80, 40)
+            painter.drawRect(int(center_transformed[0] - button_size/2),
+                           int(center_transformed[1] - button_height/2),
+                           int(button_size), int(button_height))
             painter.setPen(QPen(QColor(255, 255, 255)))
-            painter.drawText(int(center[0] - 35), int(center[1] + 5), "Select Media")
+            painter.drawText(int(center_transformed[0] - button_size/2 + 5),
+                           int(center_transformed[1] + 5), "Select Media")
 
     def _draw_internal_grid(self, painter, mask, rows, cols):
         pen = QPen(QColor(70, 70, 70), 1, Qt.DashLine)
@@ -147,14 +174,20 @@ class ControlWindow(QWidget):
                 # Interpolate along left and right edges
                 p_left = top * (1 - t) + bottom_left * t
                 p_right = top * (1 - t) + bottom_right * t
-                painter.drawLine(int(p_left[0]), int(p_left[1]), int(p_right[0]), int(p_right[1]))
+                p_left_view = self._transform_point_to_view(p_left)
+                p_right_view = self._transform_point_to_view(p_right)
+                painter.drawLine(int(p_left_view[0]), int(p_left_view[1]),
+                               int(p_right_view[0]), int(p_right_view[1]))
 
             # Draw vertical-ish lines from top to base
             for j in range(1, cols):
                 t = j / cols
                 # Point on the base
                 p_base = bottom_left * (1 - t) + bottom_right * t
-                painter.drawLine(int(top[0]), int(top[1]), int(p_base[0]), int(p_base[1]))
+                top_view = self._transform_point_to_view(top)
+                p_base_view = self._transform_point_to_view(p_base)
+                painter.drawLine(int(top_view[0]), int(top_view[1]),
+                               int(p_base_view[0]), int(p_base_view[1]))
 
         # For quad/rectangle: interpolate grid
         elif len(vertices) >= 4:
@@ -162,20 +195,27 @@ class ControlWindow(QWidget):
                 t = i / rows
                 p1 = vertices[0] * (1 - t) + vertices[3] * t
                 p2 = vertices[1] * (1 - t) + vertices[2] * t
-                painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
+                p1_view = self._transform_point_to_view(p1)
+                p2_view = self._transform_point_to_view(p2)
+                painter.drawLine(int(p1_view[0]), int(p1_view[1]),
+                               int(p2_view[0]), int(p2_view[1]))
 
             for j in range(1, cols):
                 t = j / cols
                 p1 = vertices[0] * (1 - t) + vertices[1] * t
                 p2 = vertices[3] * (1 - t) + vertices[2] * t
-                painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
+                p1_view = self._transform_point_to_view(p1)
+                p2_view = self._transform_point_to_view(p2)
+                painter.drawLine(int(p1_view[0]), int(p1_view[1]),
+                               int(p2_view[0]), int(p2_view[1]))
 
     def mousePressEvent(self, event):
         # Ensure focus to receive keyboard events
         self.canvas.setFocus()
 
         if event.button() == Qt.LeftButton:
-            pos = np.array([event.x(), event.y()])
+            pos_view = np.array([event.x(), event.y()])
+            pos = self._transform_point_from_view(pos_view)
 
             # Check if clicking add media button
             for mask in self.masks:
@@ -228,7 +268,8 @@ class ControlWindow(QWidget):
                     return
 
     def mouseMoveEvent(self, event):
-        pos = np.array([event.x(), event.y()])
+        pos_view = np.array([event.x(), event.y()])
+        pos = self._transform_point_from_view(pos_view)
 
         # Update hover state (skip hidden masks)
         self.hover_vertex = None
@@ -350,6 +391,24 @@ class ControlWindow(QWidget):
             self.update()
         elif event.key() == Qt.Key_4:
             self.edit_type = EditType.PERSPECTIVE
+            self.update()
+        elif event.key() == Qt.Key_Period:  # . key for zoom in
+            self.view_zoom *= 1.1
+            self.update()
+        elif event.key() == Qt.Key_Comma:  # , key for zoom out
+            self.view_zoom *= 0.9
+            self.update()
+        elif event.key() == Qt.Key_Left:  # Pan left
+            self.view_offset_x += self.pan_speed / self.view_zoom
+            self.update()
+        elif event.key() == Qt.Key_Right:  # Pan right
+            self.view_offset_x -= self.pan_speed / self.view_zoom
+            self.update()
+        elif event.key() == Qt.Key_Up:  # Pan up
+            self.view_offset_y += self.pan_speed / self.view_zoom
+            self.update()
+        elif event.key() == Qt.Key_Down:  # Pan down
+            self.view_offset_y -= self.pan_speed / self.view_zoom
             self.update()
         elif event.key() == Qt.Key_Delete:
             if self.selected_mask:
