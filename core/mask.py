@@ -20,6 +20,10 @@ class Mask:
         self.rotation = 0.0
         self.scale = 1.0
 
+        # Mask state
+        self.locked = False  # When locked, mask cannot be edited
+        self.hidden = False  # When hidden, mask is not visible in editor but still renders
+
         if mask_type == MaskType.RECTANGLE:
             self.vertices = self._create_rectangle()
         elif mask_type == MaskType.TRIANGLE:
