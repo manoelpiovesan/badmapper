@@ -32,14 +32,22 @@ class ProjectionMapper(QMainWindow):
         self.current_file = None  # Track current project file
 
         self.init_ui()
+
+        # Create initial mask after UI is ready
         self.create_initial_mask()
 
         # Select first mask by default
         if self.masks:
             self.control_window.selected_mask = self.masks[0]
 
+        # Refresh mask list to show initial mask
+        self.control_window.refresh_mask_list()
+
     def init_ui(self):
         self.setWindowTitle("BadMapper - Editor")
+
+        # Set initial window size to match projection window
+        self.resize(self.projection_width, self.projection_height)
 
         # Set window icon
         icon_path = get_resource_path('assets/favicon.png')
