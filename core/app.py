@@ -32,14 +32,22 @@ class ProjectionMapper(QMainWindow):
         self.current_file = None  # Track current project file
 
         self.init_ui()
+
+        # Create initial mask after UI is ready
         self.create_initial_mask()
 
         # Select first mask by default
         if self.masks:
             self.control_window.selected_mask = self.masks[0]
 
+        # Refresh mask list to show initial mask
+        self.control_window.refresh_mask_list()
+
     def init_ui(self):
         self.setWindowTitle("BadMapper - Editor")
+
+        # Set initial window size to match projection window
+        self.resize(self.projection_width, self.projection_height)
 
         # Set window icon
         icon_path = get_resource_path('assets/favicon.png')
@@ -155,6 +163,7 @@ class ProjectionMapper(QMainWindow):
 
             mask = Mask(mask_type, 400, 300, (100, 100))
             self.masks.append(mask)
+            self.control_window.refresh_mask_list()
 
     def add_media_to_mask(self, mask):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -239,6 +248,9 @@ class ProjectionMapper(QMainWindow):
                 # Select first mask if any remain
                 if self.masks:
                     self.control_window.selected_mask = self.masks[0]
+
+            # Refresh sidebar
+            self.control_window.refresh_mask_list()
 
     def replace_media(self, mask):
         """Replace media in the selected mask"""
@@ -330,6 +342,9 @@ class ProjectionMapper(QMainWindow):
             if self.masks:
                 self.control_window.selected_mask = self.masks[0]
 
+            # Refresh sidebar
+            self.control_window.refresh_mask_list()
+
             self.setWindowTitle("BadMapper - Editor")
 
     def save_project(self):
@@ -410,6 +425,9 @@ class ProjectionMapper(QMainWindow):
                     self.control_window.selected_mask = self.masks[0]
                 else:
                     self.control_window.selected_mask = None
+
+                # Refresh sidebar
+                self.control_window.refresh_mask_list()
 
                 self.update_window_title()
                 QMessageBox.information(self, "Success", f"Project loaded from {file_path}")

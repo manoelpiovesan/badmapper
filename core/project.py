@@ -100,6 +100,8 @@ class ProjectSerializer:
             "original_vertices": mask.original_vertices.tolist(),
             "rotation": float(mask.rotation),
             "scale": float(mask.scale),
+            "locked": bool(mask.locked),
+            "hidden": bool(mask.hidden),
             "media": None,
             "media_transform": {
                 "offset_x": float(mask.media_transform.offset_x),
@@ -154,6 +156,10 @@ class ProjectSerializer:
             # Restore transformations
             mask.rotation = float(mask_data.get("rotation", 0.0))
             mask.scale = float(mask_data.get("scale", 1.0))
+
+            # Restore locked and hidden state
+            mask.locked = bool(mask_data.get("locked", False))
+            mask.hidden = bool(mask_data.get("hidden", False))
 
             # Restore media transform
             media_transform_data = mask_data.get("media_transform", {})

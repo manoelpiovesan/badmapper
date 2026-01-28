@@ -1,8 +1,10 @@
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtWidgets import QWidget, QHBoxLayout
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage, QPainter, QColor, QPen, QBrush, QFont
 import numpy as np
 from enum import Enum
+from ui.mask_list_widget import MaskListWidget
+from ui.mask_canvas import MaskCanvas
 
 class EditTarget(Enum):
     MASK = "Mask"
@@ -50,75 +52,57 @@ class ControlWindow(QWidget):
         # Edit type selected (1-4)
         self.edit_type = EditType.MOVE
 
-        self.setMouseTracking(True)
+        # View navigation (zoom and pan) - does not affect projection
+        self.view_zoom = 1.0
+        self.view_offset_x = 0.0
+        self.view_offset_y = 0.0
+        self.pan_speed = 20  # pixels per key press
 
-        # Allow focus to receive keyboard events
-        self.setFocusPolicy(Qt.StrongFocus)
-        self.setFocus()
+        # Create layout with sidebar
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Create mask list sidebar
+        self.mask_list_widget = MaskListWidget(self.masks)
+        self.mask_list_widget.mask_selected.connect(self._on_sidebar_mask_selected)
+        main_layout.addWidget(self.mask_list_widget)
+
+        # Create canvas
+        self.canvas = MaskCanvas(self)
+        main_layout.addWidget(self.canvas)
+
+        self.setLayout(main_layout)
 
         # Update timer
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
         self.timer.start(33)  # ~30 FPS
 
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.fillRect(0, 0, self.width(), self.height(), QColor(30, 30, 30))
+    def _on_sidebar_mask_selected(self, mask):
+        """Handle mask selection from sidebar"""
+        self.selected_mask = mask
+        self.canvas.setFocus()
 
-        for mask in self.masks:
-            self._draw_mask_grid(painter, mask)
+    def refresh_mask_list(self):
+        """Refresh the sidebar mask list"""
+        self.mask_list_widget.refresh()
+        if self.selected_mask:
+            self.mask_list_widget.set_selected_mask(self.selected_mask)
 
-        # Draw Ctrl mode indicator
-        if self.ctrl_pressed:
-            painter.setPen(QPen(QColor(255, 200, 0), 2))
-            painter.setBrush(QBrush(QColor(255, 200, 0, 100)))
-            painter.drawRect(10, 10, 200, 30)
-            painter.setPen(QPen(QColor(255, 255, 255)))
-            painter.drawText(20, 30, "MEDIA MODE (Ctrl active)")
+    def _transform_point_to_view(self, point):
+        """Transform a point from world space to view space (with zoom and pan)"""
+        x, y = point
+        view_x = (x + self.view_offset_x) * self.view_zoom
+        view_y = (y + self.view_offset_y) * self.view_zoom
+        return np.array([view_x, view_y])
 
-        # Draw edit mode indicator (bottom left corner)
-        self._draw_edit_mode_indicator(painter)
-
-        # Draw help overlay
-        if self.show_help:
-            painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
-            painter.setPen(QPen(QColor(100, 100, 100)))
-            help_w, help_h = 400, 340
-            help_x = self.width() - help_w - 20
-            help_y = 20
-            painter.drawRect(help_x, help_y, help_w, help_h)
-
-            painter.setPen(QPen(QColor(255, 255, 255)))
-            y_offset = help_y + 25
-            line_height = 20
-
-            painter.drawText(help_x + 10, y_offset, "SHORTCUTS:")
-            y_offset += line_height + 5
-
-            painter.setPen(QPen(QColor(200, 200, 200)))
-            painter.drawText(help_x + 10, y_offset, "• Drag vertex: adjust perspective")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Drag mask: move")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Ctrl + Drag: move media")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Ctrl + Scroll: scale media")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Shift + Scroll: rotate media")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Delete: remove selected mask")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• R: replace media")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• F11: fullscreen projection")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• G: toggle grid (projection)")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• H: hide/show help")
-            y_offset += line_height + 10
-
-            painter.setPen(QPen(QColor(150, 150, 150)))
-            painter.drawText(help_x + 10, y_offset, "Press H to hide")
+    def _transform_point_from_view(self, point):
+        """Transform a point from view space back to world space"""
+        x, y = point
+        world_x = x / self.view_zoom - self.view_offset_x
+        world_y = y / self.view_zoom - self.view_offset_y
+        return np.array([world_x, world_y])
 
     def _draw_mask_grid(self, painter, mask):
         is_selected = (mask == self.selected_mask)
@@ -130,19 +114,20 @@ class ControlWindow(QWidget):
             pen = QPen(QColor(100, 100, 100), 1)
         painter.setPen(pen)
 
-        vertices = mask.vertices.astype(int)
+        # Apply view transformation to vertices
+        vertices_transformed = np.array([self._transform_point_to_view(v) for v in mask.vertices]).astype(int)
 
         # Draw polygon
-        for i in range(len(vertices)):
-            p1 = vertices[i]
-            p2 = vertices[(i + 1) % len(vertices)]
+        for i in range(len(vertices_transformed)):
+            p1 = vertices_transformed[i]
+            p2 = vertices_transformed[(i + 1) % len(vertices_transformed)]
             painter.drawLine(p1[0], p1[1], p2[0], p2[1])
 
         # Draw grid inside mask
         self._draw_internal_grid(painter, mask, 10, 10)
 
         # Draw vertices
-        for i, vertex in enumerate(vertices):
+        for i, vertex in enumerate(vertices_transformed):
             is_hover = (self.hover_vertex == i and self.hover_mask == mask)
             if is_hover:
                 painter.setBrush(QBrush(QColor(255, 200, 0)))
@@ -156,11 +141,17 @@ class ControlWindow(QWidget):
         # Draw add media button if no media
         if mask.media is None:
             center = mask.get_center()
+            center_transformed = self._transform_point_to_view(center)
+            button_size = 80 * self.view_zoom
+            button_height = 40 * self.view_zoom
             painter.setBrush(QBrush(QColor(50, 150, 50, 180)))
             painter.setPen(QPen(QColor(100, 255, 100), 2))
-            painter.drawRect(int(center[0] - 40), int(center[1] - 20), 80, 40)
+            painter.drawRect(int(center_transformed[0] - button_size/2),
+                           int(center_transformed[1] - button_height/2),
+                           int(button_size), int(button_height))
             painter.setPen(QPen(QColor(255, 255, 255)))
-            painter.drawText(int(center[0] - 35), int(center[1] + 5), "Select Media")
+            painter.drawText(int(center_transformed[0] - button_size/2 + 5),
+                           int(center_transformed[1] + 5), "Select Media")
 
     def _draw_internal_grid(self, painter, mask, rows, cols):
         pen = QPen(QColor(70, 70, 70), 1, Qt.DashLine)
@@ -183,14 +174,20 @@ class ControlWindow(QWidget):
                 # Interpolate along left and right edges
                 p_left = top * (1 - t) + bottom_left * t
                 p_right = top * (1 - t) + bottom_right * t
-                painter.drawLine(int(p_left[0]), int(p_left[1]), int(p_right[0]), int(p_right[1]))
+                p_left_view = self._transform_point_to_view(p_left)
+                p_right_view = self._transform_point_to_view(p_right)
+                painter.drawLine(int(p_left_view[0]), int(p_left_view[1]),
+                               int(p_right_view[0]), int(p_right_view[1]))
 
             # Draw vertical-ish lines from top to base
             for j in range(1, cols):
                 t = j / cols
                 # Point on the base
                 p_base = bottom_left * (1 - t) + bottom_right * t
-                painter.drawLine(int(top[0]), int(top[1]), int(p_base[0]), int(p_base[1]))
+                top_view = self._transform_point_to_view(top)
+                p_base_view = self._transform_point_to_view(p_base)
+                painter.drawLine(int(top_view[0]), int(top_view[1]),
+                               int(p_base_view[0]), int(p_base_view[1]))
 
         # For quad/rectangle: interpolate grid
         elif len(vertices) >= 4:
@@ -198,23 +195,32 @@ class ControlWindow(QWidget):
                 t = i / rows
                 p1 = vertices[0] * (1 - t) + vertices[3] * t
                 p2 = vertices[1] * (1 - t) + vertices[2] * t
-                painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
+                p1_view = self._transform_point_to_view(p1)
+                p2_view = self._transform_point_to_view(p2)
+                painter.drawLine(int(p1_view[0]), int(p1_view[1]),
+                               int(p2_view[0]), int(p2_view[1]))
 
             for j in range(1, cols):
                 t = j / cols
                 p1 = vertices[0] * (1 - t) + vertices[1] * t
                 p2 = vertices[3] * (1 - t) + vertices[2] * t
-                painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
+                p1_view = self._transform_point_to_view(p1)
+                p2_view = self._transform_point_to_view(p2)
+                painter.drawLine(int(p1_view[0]), int(p1_view[1]),
+                               int(p2_view[0]), int(p2_view[1]))
 
     def mousePressEvent(self, event):
         # Ensure focus to receive keyboard events
-        self.setFocus()
+        self.canvas.setFocus()
 
         if event.button() == Qt.LeftButton:
-            pos = np.array([event.x(), event.y()])
+            pos_view = np.array([event.x(), event.y()])
+            pos = self._transform_point_from_view(pos_view)
 
             # Check if clicking add media button
             for mask in self.masks:
+                if mask.hidden or mask.locked:  # Skip hidden or locked masks
+                    continue
                 if mask.media is None:
                     center = mask.get_center()
                     if abs(pos[0] - center[0]) < 40 and abs(pos[1] - center[1]) < 20:
@@ -224,10 +230,13 @@ class ControlWindow(QWidget):
             # Ctrl + drag for media transformation
             if self.ctrl_pressed:
                 for mask in self.masks:
+                    if mask.hidden or mask.locked:  # Skip hidden or locked masks
+                        continue
                     if mask.media and self._point_in_polygon(pos, mask.vertices):
                         self.media_transform_mode = True
                         self.dragging_mask = mask
                         self.selected_mask = mask
+                        self.mask_list_widget.set_selected_mask(mask)
                         self.media_drag_start = pos.copy()
                         self.media_initial_offset = np.array([mask.media_transform.offset_x,
                                                               mask.media_transform.offset_y])
@@ -235,30 +244,39 @@ class ControlWindow(QWidget):
 
             # Check if clicking on vertex
             for mask in self.masks:
+                if mask.hidden or mask.locked:  # Skip hidden or locked masks
+                    continue
                 for i, vertex in enumerate(mask.vertices):
                     dist = np.linalg.norm(pos - vertex)
                     if dist < 10:
                         self.dragging_vertex = i
                         self.dragging_mask = mask
                         self.selected_mask = mask
+                        self.mask_list_widget.set_selected_mask(mask)
                         self.drag_start = pos.copy()
                         return
 
             # Check if clicking inside mask
             for mask in self.masks:
+                if mask.hidden or mask.locked:  # Skip hidden or locked masks
+                    continue
                 if self._point_in_polygon(pos, mask.vertices):
                     self.dragging_mask = mask
                     self.selected_mask = mask
+                    self.mask_list_widget.set_selected_mask(mask)
                     self.drag_start = pos.copy()
                     return
 
     def mouseMoveEvent(self, event):
-        pos = np.array([event.x(), event.y()])
+        pos_view = np.array([event.x(), event.y()])
+        pos = self._transform_point_from_view(pos_view)
 
-        # Update hover state
+        # Update hover state (skip hidden masks)
         self.hover_vertex = None
         self.hover_mask = None
         for mask in self.masks:
+            if mask.hidden:  # Skip hidden masks
+                continue
             for i, vertex in enumerate(mask.vertices):
                 dist = np.linalg.norm(pos - vertex)
                 if dist < 10:
@@ -374,6 +392,24 @@ class ControlWindow(QWidget):
         elif event.key() == Qt.Key_4:
             self.edit_type = EditType.PERSPECTIVE
             self.update()
+        elif event.key() == Qt.Key_Period:  # . key for zoom in
+            self.view_zoom *= 1.1
+            self.update()
+        elif event.key() == Qt.Key_Comma:  # , key for zoom out
+            self.view_zoom *= 0.9
+            self.update()
+        elif event.key() == Qt.Key_Left:  # Pan left
+            self.view_offset_x += self.pan_speed / self.view_zoom
+            self.update()
+        elif event.key() == Qt.Key_Right:  # Pan right
+            self.view_offset_x -= self.pan_speed / self.view_zoom
+            self.update()
+        elif event.key() == Qt.Key_Up:  # Pan up
+            self.view_offset_y += self.pan_speed / self.view_zoom
+            self.update()
+        elif event.key() == Qt.Key_Down:  # Pan down
+            self.view_offset_y -= self.pan_speed / self.view_zoom
+            self.update()
         elif event.key() == Qt.Key_Delete:
             if self.selected_mask:
                 self.mask_delete_requested.emit(self.selected_mask)
@@ -389,7 +425,7 @@ class ControlWindow(QWidget):
         """Draw edit mode indicator in the bottom left corner"""
         # Indicator background
         box_width = 350
-        box_height = 100
+        box_height = 65
         box_x = 10
         box_y = self.height() - box_height - 10
 
@@ -411,30 +447,19 @@ class ControlWindow(QWidget):
         font.setBold(True)
         font.setPointSize(11)
         painter.setFont(font)
-        painter.drawText(box_x + 10, box_y + 22, f"Target: {self.edit_target.value}")
+        painter.drawText(box_x + 10, box_y + 22, f"{self.edit_target.value} Mode")
 
         # Edit type text
         font.setPointSize(12)
         painter.setFont(font)
         painter.setPen(QPen(QColor(255, 255, 100)))
-        painter.drawText(box_x + 10, box_y + 45, f"Edit: {self.edit_type.label}")
+        painter.drawText(box_x + 10, box_y + 45, f"{self.edit_type.label}")
 
         # Controls
         font.setBold(False)
         font.setPointSize(9)
         painter.setFont(font)
         painter.setPen(QPen(QColor(220, 220, 220)))
-
-        # Show keys with highlight on selected
-        edit_types_text = ""
-        for et in EditType:
-            if et == self.edit_type:
-                edit_types_text += f"[{et.num}:{et.label}] "
-            else:
-                edit_types_text += f"{et.num}:{et.label} "
-
-        painter.drawText(box_x + 10, box_y + 65, edit_types_text)
-        painter.drawText(box_x + 10, box_y + 85, "E: Toggle Mask/Media")
 
         # Selected mask info
         if self.selected_mask:
