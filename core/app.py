@@ -109,6 +109,13 @@ class ProjectionMapper(QMainWindow):
         fullscreen_action.triggered.connect(self.toggle_projection_fullscreen)
         view_menu.addAction(fullscreen_action)
 
+        # Export menu
+        export_menu = menubar.addMenu('Export')
+
+        export_video_action = QAction('Export video', self)
+        export_video_action.triggered.connect(self.export_video)
+        export_menu.addAction(export_video_action)
+
         # Control window
         self.control_window = ControlWindow(self.masks)
         self.control_window.media_requested.connect(self.add_media_to_mask)
@@ -441,6 +448,175 @@ class ProjectionMapper(QMainWindow):
             self.setWindowTitle(f"BadMapper - Editor - {file_name}")
         else:
             self.setWindowTitle("BadMapper - Editor")
+
+    def export_video(self):
+        """Export the projection window as an MP4 video"""
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QSpinBox, QPushButton, QHBoxLayout, QProgressDialog, QTextEdit
+        from PyQt5.QtCore import QThread, pyqtSignal
+        import cv2
+        import math
+
+        def gcd(a, b):
+            """Calculate Greatest Common Divisor"""
+            while b:
+                a, b = b, a % b
+            return a
+
+        def lcm(a, b):
+            """Calculate Least Common Multiple"""
+            return abs(a * b) // gcd(a, b)
+
+        def lcm_multiple(numbers):
+            """Calculate LCM of multiple numbers"""
+            if not numbers:
+                return 1
+            result = numbers[0]
+            for num in numbers[1:]:
+                result = lcm(result, num)
+            return result
+
+        # Collect all video durations
+        video_durations = []
+        for mask in self.masks:
+            if mask.media and mask.media.is_video and mask.media.cap:
+                # Get total frame count and FPS
+                frame_count = mask.media.cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                fps = mask.media.cap.get(cv2.CAP_PROP_FPS)
+                if frame_count > 0 and fps > 0:
+                    video_duration = int(frame_count / fps)
+                    if video_duration > 0:
+                        video_durations.append(video_duration)
+
+        # Calculate recommended duration (LCM for perfect loop)
+        if video_durations:
+            recommended_duration = lcm_multiple(video_durations)
+            # Cap at a reasonable maximum (e.g., 300 seconds = 5 minutes)
+            if recommended_duration > 300:
+                # If LCM is too large, use the longest video duration
+                recommended_duration = max(video_durations)
+
+            info_text = f"Detected {len(video_durations)} video(s) with durations: {', '.join(map(str, video_durations))} seconds.\n\n"
+            info_text += f"Recommended duration: {recommended_duration} seconds (LCM)\n\n"
+            info_text += "The LCM (Least Common Multiple) ensures all videos complete an exact number of loops, "
+            info_text += "creating a perfect seamless loop without any video cutting off mid-playback."
+        else:
+            recommended_duration = 10
+            info_text = "No videos detected. Using default duration of 10 seconds."
+
+        # Dialog for export settings
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Export Video Settings")
+        layout = QVBoxLayout()
+
+        # Info text about LCM
+        info_label = QTextEdit()
+        info_label.setReadOnly(True)
+        info_label.setMaximumHeight(100)
+        info_label.setText(info_text)
+        layout.addWidget(info_label)
+
+        # Duration
+        duration_label = QLabel("Duration (seconds):")
+        layout.addWidget(duration_label)
+        duration_spinbox = QSpinBox()
+        duration_spinbox.setMinimum(1)
+        duration_spinbox.setMaximum(3600)
+        duration_spinbox.setValue(recommended_duration)
+        layout.addWidget(duration_spinbox)
+
+        # FPS
+        fps_label = QLabel("FPS:")
+        layout.addWidget(fps_label)
+        fps_spinbox = QSpinBox()
+        fps_spinbox.setMinimum(1)
+        fps_spinbox.setMaximum(60)
+        fps_spinbox.setValue(30)
+        layout.addWidget(fps_spinbox)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        ok_button = QPushButton("Export")
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(dialog.reject)
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
+        dialog.setLayout(layout)
+
+        if dialog.exec_():
+            duration = duration_spinbox.value()
+            fps = fps_spinbox.value()
+
+            # Ask for save location
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Video As",
+                "",
+                "MP4 Video (*.mp4)"
+            )
+
+            if file_path:
+                # Ensure .mp4 extension
+                if not file_path.endswith('.mp4'):
+                    file_path += '.mp4'
+
+                try:
+                    # Create progress dialog
+                    progress = QProgressDialog("Exporting video...", "Cancel", 0, duration * fps, self)
+                    progress.setWindowTitle("Export Progress")
+                    progress.setWindowModality(Qt.WindowModal)
+                    progress.show()
+
+                    # Get projection size
+                    width = self.projection_width
+                    height = self.projection_height
+
+                    # Create VideoWriter
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    out = cv2.VideoWriter(file_path, fourcc, fps, (width, height))
+
+                    frame_count = duration * fps
+                    was_canceled = False
+
+                    for i in range(frame_count):
+                        if progress.wasCanceled():
+                            was_canceled = True
+                            break
+
+                        # Render current frame
+                        self.renderer.reset_canvas()
+                        for mask in self.masks:
+                            if mask.media:
+                                self.renderer.render_mask(mask)
+
+                        # Draw grids if enabled
+                        if self.renderer.show_grid:
+                            for mask in self.masks:
+                                self.renderer.draw_grid(mask)
+
+                        # Get the output frame
+                        frame = self.renderer.get_output()
+
+                        if frame is not None:
+                            out.write(frame)
+
+                        progress.setValue(i + 1)
+
+                    out.release()
+                    progress.close()
+
+                    if was_canceled:
+                        QMessageBox.information(self, "Cancelled", "Video export was cancelled")
+                        # Remove incomplete file
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                    else:
+                        QMessageBox.information(self, "Success", f"Video exported to {file_path}")
+
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to export video: {str(e)}")
 
     def closeEvent(self, event):
         # Clean up media resources
