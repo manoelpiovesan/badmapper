@@ -425,7 +425,7 @@ class ControlWindow(QWidget):
         """Draw edit mode indicator in the bottom left corner"""
         # Indicator background
         box_width = 350
-        box_height = 100
+        box_height = 65
         box_x = 10
         box_y = self.height() - box_height - 10
 
@@ -447,30 +447,19 @@ class ControlWindow(QWidget):
         font.setBold(True)
         font.setPointSize(11)
         painter.setFont(font)
-        painter.drawText(box_x + 10, box_y + 22, f"Target: {self.edit_target.value}")
+        painter.drawText(box_x + 10, box_y + 22, f"{self.edit_target.value} Mode")
 
         # Edit type text
         font.setPointSize(12)
         painter.setFont(font)
         painter.setPen(QPen(QColor(255, 255, 100)))
-        painter.drawText(box_x + 10, box_y + 45, f"Edit: {self.edit_type.label}")
+        painter.drawText(box_x + 10, box_y + 45, f"{self.edit_type.label}")
 
         # Controls
         font.setBold(False)
         font.setPointSize(9)
         painter.setFont(font)
         painter.setPen(QPen(QColor(220, 220, 220)))
-
-        # Show keys with highlight on selected
-        edit_types_text = ""
-        for et in EditType:
-            if et == self.edit_type:
-                edit_types_text += f"[{et.num}:{et.label}] "
-            else:
-                edit_types_text += f"{et.num}:{et.label} "
-
-        painter.drawText(box_x + 10, box_y + 65, edit_types_text)
-        painter.drawText(box_x + 10, box_y + 85, "E: Toggle Mask/Media")
 
         # Selected mask info
         if self.selected_mask:

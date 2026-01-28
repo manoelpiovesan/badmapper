@@ -63,11 +63,13 @@ class MaskCanvas(QWidget):
             y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• Drag mask: move")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Ctrl + Drag: move media")
+            painter.drawText(help_x + 10, y_offset, "• 1: Rotate")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Ctrl + Scroll: scale media")
+            painter.drawText(help_x + 10, y_offset, "• 2: Move")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Shift + Scroll: rotate media")
+            painter.drawText(help_x + 10, y_offset, "• 3: Scale")
+            y_offset += line_height
+            painter.drawText(help_x + 10, y_offset, "• 4: Perspective")
             y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• Delete: remove selected mask")
             y_offset += line_height
@@ -78,25 +80,13 @@ class MaskCanvas(QWidget):
             painter.drawText(help_x + 10, y_offset, "• G: toggle grid (projection)")
             y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• H: hide/show help")
-            y_offset += line_height + 5
-
-            painter.setPen(QPen(QColor(100, 255, 100)))
-            painter.drawText(help_x + 10, y_offset, "View Navigation:")
             y_offset += line_height
-            painter.setPen(QPen(QColor(200, 200, 200)))
-            painter.drawText(help_x + 10, y_offset, "• . (period): zoom in")
+            painter.drawText(help_x + 10, y_offset, "• . (period): zoom in (navigation)")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• , (comma): zoom out")
+            painter.drawText(help_x + 10, y_offset, "• , (comma): zoom out (navigation)")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• Arrow keys: pan view")
-            y_offset += line_height + 5
-
-            painter.setPen(QPen(QColor(150, 150, 150)))
-            painter.drawText(help_x + 10, y_offset, "Sidebar:")
+            painter.drawText(help_x + 10, y_offset, "• Arrow keys: pan view (navigation)")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• 🔒 Lock/unlock mask editing")
-            y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• 👁 Hide/show mask in editor")
 
     def mousePressEvent(self, event):
         self.control_window.mousePressEvent(event)
