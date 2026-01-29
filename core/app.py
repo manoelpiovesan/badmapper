@@ -30,6 +30,8 @@ class ProjectionMapper(QMainWindow):
         self.projection_height = 1080
 
         self.masks = []
+        self.projects = []  # List of loaded projects
+        self.current_project = None  # Currently active project
         self.renderer = Renderer(self.projection_width, self.projection_height)
         self.gl_renderer = GLRenderer(self.projection_width, self.projection_height)
         self.use_opengl = True  # Use OpenGL by default for better performance
@@ -121,10 +123,11 @@ class ProjectionMapper(QMainWindow):
         export_menu.addAction(export_video_action)
 
         # Control window
-        self.control_window = ControlWindow(self.masks)
+        self.control_window = ControlWindow(self.masks, self.projects)
         self.control_window.media_requested.connect(self.add_media_to_mask)
         self.control_window.mask_delete_requested.connect(self.delete_mask)
         self.control_window.media_replace_requested.connect(self.replace_media)
+        self.control_window.project_selected.connect(self.switch_to_project)
         self.setCentralWidget(self.control_window)
 
         # Projection window - Use CPU renderer by default (more stable)
@@ -166,6 +169,17 @@ class ProjectionMapper(QMainWindow):
     def create_initial_mask(self):
         mask = Mask(MaskType.RECTANGLE, 600, 400, (200, 200))
         self.masks.append(mask)
+
+        # Create initial project entry
+        self.current_project = {
+            'name': 'Untitled Project',
+            'path': None,
+            'masks': self.masks,
+            'projection_width': self.projection_width,
+            'projection_height': self.projection_height
+        }
+        self.projects.append(self.current_project)
+        self.control_window.refresh_project_list()
 
     def add_mask_dialog(self):
         from PyQt5.QtWidgets import QDialog, QVBoxLayout, QRadioButton, QPushButton
@@ -367,45 +381,55 @@ class ProjectionMapper(QMainWindow):
 
     def new_project(self):
         """Create a new project"""
-        reply = QMessageBox.question(
-            self,
-            'New Project',
-            'Are you sure you want to create a new project? Any unsaved changes will be lost.',
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
+        # Save current project state before creating new one
+        if self.current_project:
+            self.current_project['masks'] = self.masks.copy()
+            self.current_project['projection_width'] = self.projection_width
+            self.current_project['projection_height'] = self.projection_height
 
-        if reply == QMessageBox.Yes:
-            # Clean up existing masks
-            for mask in self.masks:
-                if mask.media:
-                    mask.media.release()
+        # Create new project
+        new_masks = []
+        mask = Mask(MaskType.RECTANGLE, 600, 400, (200, 200))
+        new_masks.append(mask)
 
-            # Reset project
-            self.masks.clear()
-            self.current_file = None
-            self.create_initial_mask()
+        new_project = {
+            'name': f'Untitled Project {len(self.projects) + 1}',
+            'path': None,
+            'masks': new_masks,
+            'projection_width': 1920,
+            'projection_height': 1080
+        }
 
-            # Select first mask
-            if self.masks:
-                self.control_window.selected_mask = self.masks[0]
+        # Add to projects list
+        self.projects.append(new_project)
 
-            # Refresh sidebar
-            self.control_window.refresh_mask_list()
+        # Switch to the new project
+        self.switch_to_project(new_project)
 
-            self.setWindowTitle("BadMapper - Editor")
+        # Refresh project list
+        self.control_window.refresh_project_list()
+        self.control_window.project_list_widget.set_selected_project(new_project)
 
     def save_project(self):
         """Save the current project"""
-        if self.current_file:
+        if not self.current_project:
+            QMessageBox.warning(self, "No Project", "No project is currently loaded.")
+            return
+
+        # Update current project state
+        self.current_project['masks'] = self.masks.copy()
+        self.current_project['projection_width'] = self.projection_width
+        self.current_project['projection_height'] = self.projection_height
+
+        if self.current_project.get('path'):
             success = ProjectSerializer.save_project(
-                self.current_file,
+                self.current_project['path'],
                 self.masks,
                 self.projection_width,
                 self.projection_height
             )
             if success:
-                QMessageBox.information(self, "Success", f"Project saved to {self.current_file}")
+                QMessageBox.information(self, "Success", f"Project saved to {self.current_project['path']}")
                 self.update_window_title()
             else:
                 QMessageBox.critical(self, "Error", "Failed to save project")
@@ -414,6 +438,10 @@ class ProjectionMapper(QMainWindow):
 
     def save_project_as(self):
         """Save the current project with a new filename"""
+        if not self.current_project:
+            QMessageBox.warning(self, "No Project", "No project is currently loaded.")
+            return
+
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Project As",
@@ -422,6 +450,11 @@ class ProjectionMapper(QMainWindow):
         )
 
         if file_path:
+            # Update current project state
+            self.current_project['masks'] = self.masks.copy()
+            self.current_project['projection_width'] = self.projection_width
+            self.current_project['projection_height'] = self.projection_height
+
             success = ProjectSerializer.save_project(
                 file_path,
                 self.masks,
@@ -430,6 +463,12 @@ class ProjectionMapper(QMainWindow):
             )
             if success:
                 self.current_file = file_path
+                self.current_project['path'] = file_path
+                self.current_project['name'] = os.path.basename(file_path).replace('.bad', '')
+
+                # Refresh project list to show updated name
+                self.control_window.refresh_project_list()
+
                 QMessageBox.information(self, "Success", f"Project saved to {file_path}")
                 self.update_window_title()
             else:
@@ -445,48 +484,93 @@ class ProjectionMapper(QMainWindow):
         )
 
         if file_path:
-            project_data = ProjectSerializer.load_project(file_path)
+            self._load_project_from_file(file_path)
 
-            if project_data:
-                # Clean up existing masks
-                for mask in self.masks:
-                    if mask.media:
-                        mask.media.release()
+    def _load_project_from_file(self, file_path):
+        """Load a project file and add it to the projects list"""
+        project_data = ProjectSerializer.load_project(file_path)
 
-                # Load new project
-                self.masks.clear()
-                self.masks.extend(project_data["masks"])
-                self.projection_width = project_data["projection_width"]
-                self.projection_height = project_data["projection_height"]
-                self.current_file = file_path
+        if project_data:
+            # Check if project is already loaded
+            for proj in self.projects:
+                if proj.get('path') == file_path:
+                    QMessageBox.information(self, "Already Loaded", f"Project {os.path.basename(file_path)} is already loaded. Switching to it.")
+                    self.switch_to_project(proj)
+                    return
 
-                # Update renderer with new projection size
-                self.renderer.width = self.projection_width
-                self.renderer.height = self.projection_height
-                self.renderer.canvas = None  # Will be recreated on next render
+            # Create new project entry
+            new_project = {
+                'name': os.path.basename(file_path).replace('.bad', ''),
+                'path': file_path,
+                'masks': project_data["masks"],
+                'projection_width': project_data["projection_width"],
+                'projection_height': project_data["projection_height"]
+            }
 
-                # Update projection window
-                self.projection_window.setFixedSize(self.projection_width, self.projection_height)
+            # Add to projects list
+            self.projects.append(new_project)
 
-                # Select first mask if available
-                if self.masks:
-                    self.control_window.selected_mask = self.masks[0]
-                else:
-                    self.control_window.selected_mask = None
+            # Switch to the new project
+            self.switch_to_project(new_project)
 
-                # Refresh sidebar
-                self.control_window.refresh_mask_list()
+            # Refresh project list
+            self.control_window.refresh_project_list()
 
-                self.update_window_title()
-                QMessageBox.information(self, "Success", f"Project loaded from {file_path}")
-            else:
-                QMessageBox.critical(self, "Error", "Failed to load project")
+            QMessageBox.information(self, "Success", f"Project loaded from {file_path}")
+        else:
+            QMessageBox.critical(self, "Error", "Failed to load project")
+
+    def switch_to_project(self, project_data):
+        """Switch to a different loaded project"""
+        # Handle loading a new project file
+        if project_data.get('is_new'):
+            self._load_project_from_file(project_data['path'])
+            return
+
+        # Save current project state before switching
+        if self.current_project:
+            self.current_project['masks'] = self.masks.copy()
+            self.current_project['projection_width'] = self.projection_width
+            self.current_project['projection_height'] = self.projection_height
+
+        # Switch to the selected project
+        self.current_project = project_data
+        self.current_file = project_data.get('path')
+
+        # Clear current masks (don't release media, we're keeping them in project)
+        self.masks.clear()
+
+        # Load masks from the selected project
+        self.masks.extend(project_data['masks'])
+        self.projection_width = project_data['projection_width']
+        self.projection_height = project_data['projection_height']
+
+        # Update renderer with new projection size
+        self.renderer.width = self.projection_width
+        self.renderer.height = self.projection_height
+        self.renderer.canvas = None  # Will be recreated on next render
+
+        # Update projection window
+        self.projection_window.resize(self.projection_width, self.projection_height)
+
+        # Select first mask if available
+        if self.masks:
+            self.control_window.selected_mask = self.masks[0]
+        else:
+            self.control_window.selected_mask = None
+
+        # Refresh sidebars
+        self.control_window.refresh_mask_list()
+        self.control_window.refresh_project_list()
+        self.control_window.project_list_widget.set_selected_project(project_data)
+
+        self.update_window_title()
 
     def update_window_title(self):
-        """Update the window title with the current file name"""
-        if self.current_file:
-            file_name = os.path.basename(self.current_file)
-            self.setWindowTitle(f"BadMapper - Editor - {file_name}")
+        """Update the window title with the current project name"""
+        if self.current_project:
+            project_name = self.current_project.get('name', 'Untitled')
+            self.setWindowTitle(f"BadMapper - Editor - {project_name}")
         else:
             self.setWindowTitle("BadMapper - Editor")
 
