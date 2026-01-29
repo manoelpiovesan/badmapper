@@ -40,18 +40,6 @@ Press H to show/hide helper panel.
 
 ## Features
 
-### OpenGL Hardware Acceleration
-BadMapper uses **OpenGL for GPU-accelerated rendering**, providing:
-- **60 FPS** projection output (vs 30 FPS CPU-based)
-- **Real-time video processing** with minimal latency
-- **Efficient texture management** for multiple masks
-- **Hardware-accelerated transformations** (scale, rotate, perspective)
-- **Fallback to CPU rendering** if OpenGL is unavailable
-
-**Keyboard Shortcuts:**
-- `O` - Toggle between OpenGL and CPU rendering (in projection window)
-- `G` - Toggle grid overlay
-
 ### Project Files (.bad)
 BadMapper allows you to save and load projects in `.bad` format (JSON-based). Projects include:
 - Mask positions, types, and transformations

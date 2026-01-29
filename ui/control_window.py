@@ -4,7 +4,6 @@ from PyQt5.QtGui import QImage, QPainter, QColor, QPen, QBrush, QFont
 import numpy as np
 from enum import Enum
 from ui.mask_list_widget import MaskListWidget
-from ui.project_list_widget import ProjectListWidget
 from ui.mask_canvas import MaskCanvas
 
 class EditTarget(Enum):
@@ -25,12 +24,10 @@ class ControlWindow(QWidget):
     media_requested = pyqtSignal(object)
     mask_delete_requested = pyqtSignal(object)
     media_replace_requested = pyqtSignal(object)
-    project_selected = pyqtSignal(object)  # Emits selected project
 
-    def __init__(self, masks, projects=None, width=1024, height=768):
+    def __init__(self, masks, width=1024, height=768):
         super().__init__()
         self.masks = masks
-        self.projects = projects if projects is not None else []
         self.canvas_width = width
         self.canvas_height = height
 
@@ -66,19 +63,14 @@ class ControlWindow(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Create mask list sidebar (left)
+        # Create mask list sidebar
         self.mask_list_widget = MaskListWidget(self.masks)
         self.mask_list_widget.mask_selected.connect(self._on_sidebar_mask_selected)
         main_layout.addWidget(self.mask_list_widget)
 
-        # Create canvas (center)
+        # Create canvas
         self.canvas = MaskCanvas(self)
         main_layout.addWidget(self.canvas)
-
-        # Create project list sidebar (right)
-        self.project_list_widget = ProjectListWidget(self.projects)
-        self.project_list_widget.project_selected.connect(self._on_sidebar_project_selected)
-        main_layout.addWidget(self.project_list_widget)
 
         self.setLayout(main_layout)
 
@@ -92,19 +84,11 @@ class ControlWindow(QWidget):
         self.selected_mask = mask
         self.canvas.setFocus()
 
-    def _on_sidebar_project_selected(self, project_data):
-        """Handle project selection from sidebar"""
-        self.project_selected.emit(project_data)
-
     def refresh_mask_list(self):
         """Refresh the sidebar mask list"""
         self.mask_list_widget.refresh()
         if self.selected_mask:
             self.mask_list_widget.set_selected_mask(self.selected_mask)
-
-    def refresh_project_list(self):
-        """Refresh the sidebar project list"""
-        self.project_list_widget.refresh()
 
     def _transform_point_to_view(self, point):
         """Transform a point from world space to view space (with zoom and pan)"""
