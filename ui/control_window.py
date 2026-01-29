@@ -4,6 +4,7 @@ from PyQt5.QtGui import QImage, QPainter, QColor, QPen, QBrush, QFont
 import numpy as np
 from enum import Enum
 from ui.mask_list_widget import MaskListWidget
+from ui.project_list_widget import ProjectListWidget
 from ui.mask_canvas import MaskCanvas
 
 class EditTarget(Enum):
@@ -24,6 +25,8 @@ class ControlWindow(QWidget):
     media_requested = pyqtSignal(object)
     mask_delete_requested = pyqtSignal(object)
     media_replace_requested = pyqtSignal(object)
+    project_selected = pyqtSignal(str, str)  # Emits (file_path, project_name)
+    add_project_requested = pyqtSignal()
 
     def __init__(self, masks, width=1024, height=768):
         super().__init__()
@@ -63,7 +66,7 @@ class ControlWindow(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Create mask list sidebar
+        # Create mask list sidebar (left)
         self.mask_list_widget = MaskListWidget(self.masks)
         self.mask_list_widget.mask_selected.connect(self._on_sidebar_mask_selected)
         main_layout.addWidget(self.mask_list_widget)
@@ -71,6 +74,12 @@ class ControlWindow(QWidget):
         # Create canvas
         self.canvas = MaskCanvas(self)
         main_layout.addWidget(self.canvas)
+
+        # Create project list sidebar (right)
+        self.project_list_widget = ProjectListWidget()
+        self.project_list_widget.project_selected.connect(self._on_project_selected)
+        self.project_list_widget.add_project_requested.connect(self._on_add_project_requested)
+        main_layout.addWidget(self.project_list_widget)
 
         self.setLayout(main_layout)
 
@@ -83,6 +92,20 @@ class ControlWindow(QWidget):
         """Handle mask selection from sidebar"""
         self.selected_mask = mask
         self.canvas.setFocus()
+
+    def _on_project_selected(self, file_path, project_name):
+        """Handle project selection from sidebar"""
+        self.project_selected.emit(file_path, project_name)
+
+    def _on_add_project_requested(self):
+        """Handle add project request from sidebar"""
+        self.add_project_requested.emit()
+
+    def set_masks(self, masks):
+        """Update the masks list reference (used when switching projects)"""
+        self.masks = masks
+        self.mask_list_widget.masks = masks
+        self.refresh_mask_list()
 
     def refresh_mask_list(self):
         """Refresh the sidebar mask list"""
