@@ -15,7 +15,7 @@ class ProjectionWindow(QWidget):
         # Update timer for video playback
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
-        self.timer.start(33)  # ~30 FPS
+        self.timer.start(16)  # ~60 FPS
 
     def update_frame(self):
         self.update()

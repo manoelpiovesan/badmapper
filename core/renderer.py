@@ -23,34 +23,40 @@ class Renderer:
         media_h, media_w = frame.shape[:2]
         transform = mask.media_transform
 
-        # Create transformed media canvas
-        transformed_media = frame.copy()
+        # Only copy if transformations are needed
+        needs_transform = (transform.rotation != 0 or transform.scale != 1.0)
 
-        # Apply rotation
-        if transform.rotation != 0:
-            center = (media_w / 2, media_h / 2)
-            rotation_matrix = cv2.getRotationMatrix2D(center, transform.rotation, 1.0)
-            transformed_media = cv2.warpAffine(transformed_media, rotation_matrix, (media_w, media_h))
+        if needs_transform:
+            transformed_media = frame.copy()
 
-        # Apply scale
-        if transform.scale != 1.0:
-            new_w = int(media_w * transform.scale)
-            new_h = int(media_h * transform.scale)
-            transformed_media = cv2.resize(transformed_media, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            # Apply rotation
+            if transform.rotation != 0:
+                center = (media_w / 2, media_h / 2)
+                rotation_matrix = cv2.getRotationMatrix2D(center, transform.rotation, 1.0)
+                transformed_media = cv2.warpAffine(transformed_media, rotation_matrix, (media_w, media_h))
 
-            # Adjust to keep centered
-            if new_w < media_w or new_h < media_h:
-                # Pad
-                pad_w = max(0, (media_w - new_w) // 2)
-                pad_h = max(0, (media_h - new_h) // 2)
-                transformed_media = cv2.copyMakeBorder(transformed_media, pad_h, media_h - new_h - pad_h,
-                                                       pad_w, media_w - new_w - pad_w,
-                                                       cv2.BORDER_CONSTANT, value=(0, 0, 0))
-            else:
-                # Crop
-                crop_w = (new_w - media_w) // 2
-                crop_h = (new_h - media_h) // 2
-                transformed_media = transformed_media[crop_h:crop_h + media_h, crop_w:crop_w + media_w]
+            # Apply scale
+            if transform.scale != 1.0:
+                new_w = int(media_w * transform.scale)
+                new_h = int(media_h * transform.scale)
+                transformed_media = cv2.resize(transformed_media, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+                # Adjust to keep centered
+                if new_w < media_w or new_h < media_h:
+                    # Pad
+                    pad_w = max(0, (media_w - new_w) // 2)
+                    pad_h = max(0, (media_h - new_h) // 2)
+                    transformed_media = cv2.copyMakeBorder(transformed_media, pad_h, media_h - new_h - pad_h,
+                                                           pad_w, media_w - new_w - pad_w,
+                                                           cv2.BORDER_CONSTANT, value=(0, 0, 0))
+                else:
+                    # Crop
+                    crop_w = (new_w - media_w) // 2
+                    crop_h = (new_h - media_h) // 2
+                    transformed_media = transformed_media[crop_h:crop_h + media_h, crop_w:crop_w + media_w]
+        else:
+            # Use original frame directly if no rotation or scale
+            transformed_media = frame
 
         # Apply offset by translating the source points
         media_points = np.array([
