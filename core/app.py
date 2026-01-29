@@ -4,9 +4,11 @@ from PyQt5.QtGui import QIcon
 from core.mask import Mask, MaskType
 from core.media import Media
 from core.renderer import Renderer
+from core.gl_renderer import GLRenderer
 from core.project import ProjectSerializer
 from ui.control_window import ControlWindow
 from ui.projection_window import ProjectionWindow
+from ui.gl_projection_window import GLProjectionWindow
 import os
 import sys
 
@@ -29,6 +31,8 @@ class ProjectionMapper(QMainWindow):
 
         self.masks = []
         self.renderer = Renderer(self.projection_width, self.projection_height)
+        self.gl_renderer = GLRenderer(self.projection_width, self.projection_height)
+        self.use_opengl = True  # Use OpenGL by default for better performance
         self.current_file = None  # Track current project file
 
         self.init_ui()
@@ -123,16 +127,41 @@ class ProjectionMapper(QMainWindow):
         self.control_window.media_replace_requested.connect(self.replace_media)
         self.setCentralWidget(self.control_window)
 
-        # Projection window
-        self.projection_window = ProjectionWindow(self.renderer,
-                                                   self.projection_width,
-                                                   self.projection_height)
+        # Projection window - Use CPU renderer by default (more stable)
+        # OpenGL can be enabled via environment variable: BADMAPPER_USE_OPENGL=1
+        use_opengl_env = os.environ.get('BADMAPPER_USE_OPENGL', '0') == '1'
+
+        if use_opengl_env:
+            try:
+                print("Attempting to use OpenGL renderer...")
+                self.projection_window = GLProjectionWindow(self.renderer,
+                                                             self.gl_renderer,
+                                                             self.projection_width,
+                                                             self.projection_height)
+                self.projection_window.masks = self.masks
+                self.use_opengl = True
+                print("OpenGL renderer enabled")
+            except Exception as e:
+                print(f"OpenGL initialization failed: {e}")
+                print("Falling back to CPU renderer")
+                self.projection_window = ProjectionWindow(self.renderer,
+                                                           self.projection_width,
+                                                           self.projection_height)
+                self.use_opengl = False
+        else:
+            # Use stable CPU renderer by default
+            print("Using CPU renderer (set BADMAPPER_USE_OPENGL=1 to try OpenGL)")
+            self.projection_window = ProjectionWindow(self.renderer,
+                                                       self.projection_width,
+                                                       self.projection_height)
+            self.use_opengl = False
+
         self.projection_window.show()
 
-        # Render timer
+        # Render timer - 60 FPS
         self.render_timer = QTimer()
         self.render_timer.timeout.connect(self.render_frame)
-        self.render_timer.start(33)  # ~30 FPS
+        self.render_timer.start(16)  # ~60 FPS
 
     def create_initial_mask(self):
         mask = Mask(MaskType.RECTANGLE, 600, 400, (200, 200))
@@ -284,16 +313,28 @@ class ProjectionMapper(QMainWindow):
                 QMessageBox.critical(self, "Error", f"Could not load media: {str(e)}")
 
     def render_frame(self):
-        self.renderer.reset_canvas()
+        # Check if using OpenGL or CPU rendering
+        if self.use_opengl and hasattr(self.projection_window, 'use_opengl'):
+            # Using OpenGL window
+            if self.projection_window.use_opengl and self.gl_renderer.initialized:
+                # OpenGL rendering happens in paintGL
+                pass
+            else:
+                # OpenGL failed, but we're still in OpenGL window - just update
+                pass
+        else:
+            # Using CPU renderer (original ProjectionWindow)
+            self.renderer.reset_canvas()
 
-        for mask in self.masks:
-            if mask.media:
-                self.renderer.render_mask(mask)
-
-        # Draw grids if enabled
-        if self.renderer.show_grid:
             for mask in self.masks:
-                self.renderer.draw_grid(mask)
+                if mask.media and not mask.hidden:
+                    self.renderer.render_mask(mask)
+
+            # Draw grids if enabled
+            if self.renderer.show_grid:
+                for mask in self.masks:
+                    if not mask.hidden:
+                        self.renderer.draw_grid(mask)
 
         self.projection_window.update()
 

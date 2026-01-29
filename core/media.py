@@ -7,6 +7,8 @@ class Media:
         self.path = path if not is_webcam else f"webcam:{webcam_index}"
         self.is_video = False
         self.cap = None
+        self.current_frame = None  # Cache current frame to avoid unnecessary copies
+        self.frame_dirty = True  # Flag to track if frame needs updating
 
         if is_webcam:
             # Initialize webcam
@@ -14,10 +16,13 @@ class Media:
             if not self.cap.isOpened():
                 raise ValueError(f"Failed to open webcam {webcam_index}")
 
+            # Set camera properties for better performance
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer to get latest frames
             self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
             ret, frame = self.cap.read()
             if ret:
                 self.original_frame = frame
+                self.current_frame = frame
                 self.height, self.width = frame.shape[:2]
             else:
                 raise ValueError("Failed to read from webcam")
@@ -31,6 +36,7 @@ class Media:
                 ret, frame = self.cap.read()
                 if ret:
                     self.original_frame = frame
+                    self.current_frame = frame
                     self.height, self.width = frame.shape[:2]
                 else:
                     raise ValueError("Failed to read video")
@@ -38,23 +44,29 @@ class Media:
                 self.original_frame = cv2.imread(path)
                 if self.original_frame is None:
                     raise ValueError("Failed to load image")
+                self.current_frame = self.original_frame
                 self.height, self.width = self.original_frame.shape[:2]
 
     def get_current_frame(self):
+        """Get current frame without unnecessary copies"""
         if self.is_webcam and self.cap:
             # For webcam, always get the latest frame
             ret, frame = self.cap.read()
             if ret:
-                return frame
-            return self.original_frame
+                self.current_frame = frame
+                return self.current_frame
+            return self.current_frame if self.current_frame is not None else self.original_frame
         elif self.is_video and self.cap:
             # For video files, loop playback
             ret, frame = self.cap.read()
             if not ret:
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ret, frame = self.cap.read()
-            return frame if ret else self.original_frame
-        return self.original_frame
+            if ret:
+                self.current_frame = frame
+                return self.current_frame
+            return self.current_frame if self.current_frame is not None else self.original_frame
+        return self.current_frame if self.current_frame is not None else self.original_frame
 
     def release(self):
         if self.cap:
