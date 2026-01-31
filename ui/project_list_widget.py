@@ -25,6 +25,17 @@ class ProjectListItem(QFrame):
         layout = QHBoxLayout()
         layout.setContentsMargins(8, 8, 8, 8)
 
+        # Numpad indicator (only show for projects 0-9)
+        if self.index <= 9:
+            numpad_label = QLabel(f"[{self.index}]")
+            font = QFont()
+            font.setPointSize(10)
+            font.setBold(True)
+            numpad_label.setFont(font)
+            numpad_label.setStyleSheet("color: #48bb78; border: none;")
+            numpad_label.setFixedWidth(35)
+            layout.addWidget(numpad_label)
+
         # Project label
         self.label = QLabel(self.project_name)
         font = QFont()
@@ -85,6 +96,7 @@ class ProjectListWidget(QWidget):
     """Sidebar widget showing a list of all loaded projects"""
     project_selected = pyqtSignal(str, str)  # Emits (file_path, project_name)
     add_project_requested = pyqtSignal()
+    project_switch_by_index_requested = pyqtSignal(int)  # Emits index
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -213,3 +225,15 @@ class ProjectListWidget(QWidget):
     def get_project_files(self):
         """Get list of all project file paths"""
         return self.project_files.copy()
+
+    def switch_to_project_by_index(self, index):
+        """Switch to project by numpad index (0-9)"""
+        if 0 <= index <= 9 and index < len(self.project_files):
+            file_path = self.project_files[index]
+            # Extract project name from file path
+            project_name = os.path.splitext(os.path.basename(file_path))[0]
+            self.set_selected_project(file_path)
+            self.project_selected.emit(file_path, project_name)
+            return True
+        return False
+

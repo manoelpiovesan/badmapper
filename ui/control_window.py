@@ -49,6 +49,7 @@ class ControlWindow(QWidget):
         self.media_drag_start = None
         self.media_initial_offset = None
         self.show_help = True
+        self.performance_mode = False  # Performance mode for scene switching
 
         # Edit mode (Mask or Media)
         self.edit_target = EditTarget.MASK
@@ -396,25 +397,38 @@ class ControlWindow(QWidget):
         elif event.key() == Qt.Key_H:
             self.show_help = not self.show_help
             self.update()
+        elif event.key() == Qt.Key_P:
+            # Toggle performance mode
+            self.performance_mode = not self.performance_mode
+            self.update()
         elif event.key() == Qt.Key_E:
-            # Toggle edit target (Mask/Media)
-            if self.edit_target == EditTarget.MASK:
-                self.edit_target = EditTarget.MEDIA
+            # Toggle edit target (Mask/Media) - only when not in performance mode
+            if not self.performance_mode:
+                if self.edit_target == EditTarget.MASK:
+                    self.edit_target = EditTarget.MEDIA
+                else:
+                    self.edit_target = EditTarget.MASK
+                self.update()
+        # Number keys 0-9
+        elif event.key() >= Qt.Key_0 and event.key() <= Qt.Key_9:
+            if self.performance_mode:
+                # Performance mode: switch scenes
+                numpad_index = event.key() - Qt.Key_0
+                self.project_list_widget.switch_to_project_by_index(numpad_index)
             else:
-                self.edit_target = EditTarget.MASK
-            self.update()
-        elif event.key() == Qt.Key_1:
-            self.edit_type = EditType.ROTATE
-            self.update()
-        elif event.key() == Qt.Key_2:
-            self.edit_type = EditType.MOVE
-            self.update()
-        elif event.key() == Qt.Key_3:
-            self.edit_type = EditType.SCALE
-            self.update()
-        elif event.key() == Qt.Key_4:
-            self.edit_type = EditType.PERSPECTIVE
-            self.update()
+                # Edit mode: change edit type for 1-4
+                if event.key() == Qt.Key_1:
+                    self.edit_type = EditType.ROTATE
+                    self.update()
+                elif event.key() == Qt.Key_2:
+                    self.edit_type = EditType.MOVE
+                    self.update()
+                elif event.key() == Qt.Key_3:
+                    self.edit_type = EditType.SCALE
+                    self.update()
+                elif event.key() == Qt.Key_4:
+                    self.edit_type = EditType.PERSPECTIVE
+                    self.update()
         elif event.key() == Qt.Key_Period:  # . key for zoom in
             self.view_zoom *= 1.1
             self.update()
@@ -452,8 +466,12 @@ class ControlWindow(QWidget):
         box_x = 10
         box_y = self.height() - box_height - 10
 
-        # Color based on edit target
-        if self.edit_target == EditTarget.MASK:
+        # Color based on mode
+        if self.performance_mode:
+            # Performance mode - bright green/yellow
+            bg_color = QColor(100, 200, 0, 200)
+            border_color = QColor(150, 255, 0)
+        elif self.edit_target == EditTarget.MASK:
             bg_color = QColor(0, 100, 200, 200)
             border_color = QColor(0, 150, 255)
         else:
@@ -470,13 +488,21 @@ class ControlWindow(QWidget):
         font.setBold(True)
         font.setPointSize(11)
         painter.setFont(font)
-        painter.drawText(box_x + 10, box_y + 22, f"{self.edit_target.value} Mode")
 
-        # Edit type text
+        if self.performance_mode:
+            painter.drawText(box_x + 10, box_y + 22, "Performance Mode")
+        else:
+            painter.drawText(box_x + 10, box_y + 22, f"{self.edit_target.value} Mode")
+
+        # Edit type text or scene switching info
         font.setPointSize(12)
         painter.setFont(font)
         painter.setPen(QPen(QColor(255, 255, 100)))
-        painter.drawText(box_x + 10, box_y + 45, f"{self.edit_type.label}")
+
+        if self.performance_mode:
+            painter.drawText(box_x + 10, box_y + 45, "Press 0-9 to switch scenes")
+        else:
+            painter.drawText(box_x + 10, box_y + 45, f"{self.edit_type.label}")
 
         # Controls
         font.setBold(False)

@@ -46,7 +46,7 @@ class MaskCanvas(QWidget):
         if self.control_window.show_help:
             painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
             painter.setPen(QPen(QColor(100, 100, 100)))
-            help_w, help_h = 400, 460
+            help_w, help_h = 400, 500
             help_x = self.width() - help_w - 20
             help_y = 20
             painter.drawRect(help_x, help_y, help_w, help_h)
@@ -63,13 +63,17 @@ class MaskCanvas(QWidget):
             y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• Drag mask: move")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• 1: Rotate")
+            painter.drawText(help_x + 10, y_offset, "• P: toggle Performance mode")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• 2: Move")
+            painter.drawText(help_x + 10, y_offset, "• 0-9: switch scenes (Performance)")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• 3: Scale")
+            painter.drawText(help_x + 10, y_offset, "• 1: Rotate (Edit mode)")
             y_offset += line_height
-            painter.drawText(help_x + 10, y_offset, "• 4: Perspective")
+            painter.drawText(help_x + 10, y_offset, "• 2: Move (Edit mode)")
+            y_offset += line_height
+            painter.drawText(help_x + 10, y_offset, "• 3: Scale (Edit mode)")
+            y_offset += line_height
+            painter.drawText(help_x + 10, y_offset, "• 4: Perspective (Edit mode)")
             y_offset += line_height
             painter.drawText(help_x + 10, y_offset, "• Delete: remove selected mask")
             y_offset += line_height
